@@ -1,0 +1,7 @@
+{
+  "name": "VIEW - Web3 Super App",
+  "description": "A Web3 attention & prediction super-app rewarding users with VIEW tokens for ads, games, and quests.",
+  "requestFramePermissions": [
+    "camera"
+  ]
+}
