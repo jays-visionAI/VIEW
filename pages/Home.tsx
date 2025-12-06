@@ -26,9 +26,17 @@ const StakingModal: React.FC<{ onClose: () => void }> = ({ onClose }) => {
     else setAmount(userState.staked.toString());
   };
 
+  const handleAmountChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = e.target.value;
+    // Allow only numbers and decimal point
+    if (val === '' || /^\d*\.?\d*$/.test(val)) {
+      setAmount(val);
+    }
+  };
+
   return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50 backdrop-blur-sm p-0 sm:p-4">
-      <div className="bg-white w-full max-w-sm rounded-t-3xl sm:rounded-3xl overflow-hidden shadow-2xl animate-in slide-in-from-bottom-4">
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+      <div className="bg-white w-full max-w-sm rounded-3xl overflow-hidden shadow-2xl animate-in zoom-in-95 duration-200">
         {/* Modal Header */}
         <div className="relative bg-[#1a1b2e] text-white p-6 pb-8">
           <div className="absolute top-0 right-0 p-4">
@@ -87,15 +95,16 @@ const StakingModal: React.FC<{ onClose: () => void }> = ({ onClose }) => {
           
           <div className="relative mb-6">
             <input 
-              type="number" 
+              type="text"
+              inputMode="decimal"
               value={amount}
-              onChange={(e) => setAmount(e.target.value)}
+              onChange={handleAmountChange}
               placeholder="0"
-              className="w-full text-2xl font-bold p-4 bg-gray-50 rounded-xl border border-gray-200 focus:outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 transition-all"
+              className="w-full text-2xl font-bold p-4 pr-20 bg-gray-50 rounded-xl border border-gray-200 focus:outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 transition-all"
             />
             <button 
               onClick={setMax}
-              className="absolute right-4 top-1/2 -translate-y-1/2 text-xs font-bold bg-gray-200 text-gray-600 px-2 py-1 rounded hover:bg-gray-300"
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold bg-gray-200 text-gray-600 px-3 py-1.5 rounded-lg hover:bg-gray-300 transition-colors z-10"
             >
               최대
             </button>
@@ -183,7 +192,7 @@ const Home: React.FC = () => {
                onClick={() => setShowStaking(true)}
                className="bg-white text-brand-900 rounded-xl py-3 px-4 flex items-center justify-center font-bold text-sm shadow-lg active:scale-95 transition-transform"
              >
-                <Plus size={16} className="mr-2" /> 충전/스테이킹
+                <Lock size={16} className="mr-2" /> 스테이킹
              </button>
              <button 
                onClick={inviteFriend}
