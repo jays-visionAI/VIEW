@@ -1,0 +1,11 @@
+{
+  "network": "polygonAmoy",
+  "chainId": 80002,
+  "deployer": "0x01F0F69B85BEF934772bD8821cc71Db46A56F4e6",
+  "contracts": {
+    "VIEWToken": "0x8409fddE32D8C26182E6396e00C437a38873fEB4",
+    "RewardVault": "0xe6ad281C91165781E98b4EAe2bCd3FFcaA7C412A"
+  },
+  "signer": "0xd6F78f2970C787a13794DDfCc7f8B6c5Cd6aefB4",
+  "deployedAt": "2025-12-16T14:50:42.506Z"
+}

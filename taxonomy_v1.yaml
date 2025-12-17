@@ -1,0 +1,267 @@
+# ============================================================
+# VIEW Advertising Taxonomy v1.0
+# Standardized Industry → Product → Subcategory structure
+# ------------------------------------------------------------
+# Purpose:
+#   - Standardize advertiser classification
+#   - Enable AI-driven targeting & campaign automation
+#   - Provide consistent KPI benchmarking across industries
+# ============================================================
+
+version: 1.0
+last_updated: 2025-11-06
+maintainer: VIEW Protocol – CODEX Advertising Intelligence
+
+taxonomy:
+
+  Fashion:
+    Apparel:
+      - Menswear
+      - Womenswear
+      - Sportswear
+      - Outdoorwear
+      - Uniforms
+      - Kidswear
+    Footwear:
+      - Sneakers
+      - Sandals
+      - Boots
+      - High Heels
+      - Slippers
+    Accessories:
+      - Bags
+      - Watches
+      - Jewelry
+      - Belts
+      - Glasses
+      - Hats
+
+  Beauty:
+    Skincare:
+      - Anti-aging
+      - Whitening
+      - Moisturizing
+      - Sunscreen
+      - Acne-care
+      - Serum
+      - Toner
+    Makeup:
+      - Lipstick
+      - Foundation
+      - Mascara
+      - Eyeliner
+      - Blusher
+    Haircare:
+      - Shampoo
+      - Conditioner
+      - Treatment
+      - Styling
+    Fragrance:
+      - Perfume
+      - Body Mist
+
+  Food_Beverage:
+    Restaurant:
+      - Fine Dining
+      - Casual Dining
+      - Fast Food
+      - Franchise Chain
+    Beverage:
+      - Coffee
+      - Tea
+      - Juice
+      - Alcohol
+      - Energy Drink
+    Grocery:
+      - Organic Food
+      - Snack
+      - Frozen Food
+      - Dairy Product
+      - Fresh Produce
+    Delivery_Service:
+      - Meal Kit
+      - Food Delivery Platform
+
+  Travel:
+    Airline:
+      - Budget
+      - Full Service
+      - Charter
+      - Regional
+    Hotel:
+      - Luxury
+      - Resort
+      - Boutique
+      - Business
+      - Capsule
+    Tour:
+      - Honeymoon
+      - Cultural
+      - Adventure
+      - Wellness
+      - Eco-Tourism
+    Transportation:
+      - Train
+      - Bus
+      - Car Rental
+      - Cruise
+
+  Finance:
+    Banking:
+      - Savings Account
+      - Loan
+      - Credit Card
+      - Payment App
+    Investment:
+      - Stocks
+      - ETF
+      - Crypto
+      - Real Estate Fund
+      - Bonds
+    Insurance:
+      - Life
+      - Health
+      - Car
+      - Travel
+      - Property
+    Fintech:
+      - Digital Wallet
+      - Robo Advisor
+      - DeFi
+      - P2P Lending
+
+  Technology:
+    Consumer_Electronics:
+      - Smartphone
+      - Laptop
+      - Tablet
+      - Smartwatch
+      - Headphones
+    Software:
+      - Productivity
+      - Security
+      - Cloud Service
+      - AI Application
+    Hardware:
+      - Semiconductor
+      - IoT Device
+      - 3D Printer
+    Gaming:
+      - Console
+      - PC Game
+      - Mobile Game
+      - VR/AR
+
+  Education:
+    Online_Course:
+      - Language
+      - Programming
+      - Business
+      - Design
+      - Music
+    Institution:
+      - University
+      - College
+      - Vocational School
+      - Tutoring Center
+    Certification:
+      - MBA
+      - TOEFL
+      - IELTS
+      - Blockchain Certification
+      - AI Engineer
+
+  Health_Wellness:
+    Fitness:
+      - Gym
+      - Yoga
+      - Pilates
+      - Home Training
+    Nutrition:
+      - Supplements
+      - Vitamins
+      - Protein
+      - Health Drinks
+    Medical_Service:
+      - Clinic
+      - Dental
+      - Dermatology
+      - Aesthetic
+      - Telemedicine
+    Mental_Health:
+      - Meditation
+      - Counseling
+      - Sleep Aid Apps
+
+  Auto_Mobility:
+    Vehicle:
+      - Electric Vehicle
+      - SUV
+      - Sedan
+      - Motorcycle
+      - Used Car
+    Service:
+      - Ride Sharing
+      - Car Sharing
+      - Maintenance
+      - Charging Station
+    Accessories:
+      - Tire
+      - Battery
+      - Navigation
+      - Dashcam
+
+  Home_Living:
+    Furniture:
+      - Sofa
+      - Bed
+      - Table
+      - Lighting
+    Interior:
+      - Wallpaper
+      - Flooring
+      - Smart Home
+      - Home Decor
+    Appliances:
+      - Refrigerator
+      - Washing Machine
+      - Air Conditioner
+      - Vacuum
+    Real_Estate:
+      - Apartment
+      - Villa
+      - Commercial
+      - Rental Service
+
+  Entertainment:
+    Streaming:
+      - OTT
+      - Music
+      - Podcast
+      - Webtoon
+    Event:
+      - Concert
+      - Exhibition
+      - Festival
+    Media:
+      - TV Channel
+      - Influencer
+      - Magazine
+    Sports:
+      - Football
+      - Golf
+      - eSports
+      - Fitness Challenge
+
+  ESG_Sustainability:
+    Environment:
+      - Carbon Offset
+      - Recycling
+      - Clean Energy
+    Governance:
+      - CSR Program
+      - ESG Fund
+    Social:
+      - Donation Platform
+      - Ethical Brand
+      - Volunteer Organization

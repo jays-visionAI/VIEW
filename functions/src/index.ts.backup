@@ -1,0 +1,333 @@
+import * as functions from "firebase-functions/v1";
+import { onCall, HttpsError } from "firebase-functions/v2/https";
+import * as admin from "firebase-admin";
+import { UserProfile } from "./types";
+import { ethers } from "ethers";
+
+admin.initializeApp();
+
+// ============================================
+// Web3 Claim Signature Configuration
+// ============================================
+const CLAIM_CONFIG = {
+    // Minimum claim amount in VIEW tokens
+    MIN_CLAIM: 10,
+    // Maximum claim amount per transaction
+    MAX_CLAIM: 10000,
+    // Signature validity duration (1 hour)
+    SIGNATURE_EXPIRY_SECONDS: 3600,
+    // Chain IDs
+    POLYGON_MAINNET: 137,
+    POLYGON_AMOY: 80002,
+};
+
+// ============================================
+// generateClaimSignature - Callable Function (Gen 2)
+// ============================================
+// Generates a signed message that authorizes a user to claim VIEW tokens
+// from the RewardVault smart contract on Polygon.
+export const generateClaimSignature = onCall(async (request) => {
+    // 1. Verify authentication
+    if (!request.auth) {
+        throw new HttpsError(
+            "unauthenticated",
+            "User must be authenticated to claim tokens."
+        );
+    }
+
+    const uid = request.auth.uid;
+    const { address, amount, chainId } = request.data;
+
+    // 2. Validate input parameters
+    if (!address || !ethers.isAddress(address)) {
+        throw new HttpsError(
+            "invalid-argument",
+            "Invalid wallet address."
+        );
+    }
+
+    if (!amount || typeof amount !== "number" || amount < CLAIM_CONFIG.MIN_CLAIM) {
+        throw new HttpsError(
+            "invalid-argument",
+            `Minimum claim amount is ${CLAIM_CONFIG.MIN_CLAIM} VIEW.`
+        );
+    }
+
+    if (amount > CLAIM_CONFIG.MAX_CLAIM) {
+        throw new HttpsError(
+            "invalid-argument",
+            `Maximum claim amount is ${CLAIM_CONFIG.MAX_CLAIM} VIEW per transaction.`
+        );
+    }
+
+    if (chainId !== CLAIM_CONFIG.POLYGON_MAINNET && chainId !== CLAIM_CONFIG.POLYGON_AMOY) {
+        throw new HttpsError(
+            "invalid-argument",
+            "Invalid chain ID. Must be Polygon Mainnet or Amoy Testnet."
+        );
+    }
+
+    // 3. Get signer private key from environment
+    const signerPrivateKey = process.env.SIGNER_PRIVATE_KEY;
+    if (!signerPrivateKey) {
+        functions.logger.error("SIGNER_PRIVATE_KEY not configured");
+        throw new HttpsError(
+            "internal",
+            "Server configuration error. Please contact support."
+        );
+    }
+
+    const db = admin.firestore();
+    const userRef = db.collection("users").doc(uid);
+
+    try {
+        // 4. Run as transaction to prevent race conditions
+        const result = await db.runTransaction(async (transaction) => {
+            const userDoc = await transaction.get(userRef);
+
+            if (!userDoc.exists) {
+                throw new HttpsError(
+                    "not-found",
+                    "User profile not found."
+                );
+            }
+
+            const userData = userDoc.data()!;
+
+            // 5. Check claimable balance
+            // In production, you might have a separate 'claimableBalance' field
+            // For now, we use 'balance' as the claimable amount
+            const claimableBalance = userData.claimableBalance ?? userData.balance ?? 0;
+
+            if (amount > claimableBalance) {
+                throw new HttpsError(
+                    "failed-precondition",
+                    `Insufficient claimable balance. Available: ${claimableBalance} VIEW`
+                );
+            }
+
+            // 6. Check last claim time (optional: enforce cooldown)
+            const lastClaimTime = userData.lastClaimTime?.toMillis() ?? 0;
+            const now = Date.now();
+            const cooldownMs = 24 * 60 * 60 * 1000; // 24 hours
+
+            if (now - lastClaimTime < cooldownMs) {
+                const remainingHours = Math.ceil((cooldownMs - (now - lastClaimTime)) / (60 * 60 * 1000));
+                throw new HttpsError(
+                    "failed-precondition",
+                    `Claim cooldown active. Please wait ${remainingHours} hours.`
+                );
+            }
+
+            // 7. Generate signature
+            const wallet = new ethers.Wallet(signerPrivateKey);
+            const nonce = ethers.hexlify(ethers.randomBytes(32));
+            const expiry = Math.floor(Date.now() / 1000) + CLAIM_CONFIG.SIGNATURE_EXPIRY_SECONDS;
+            const amountWei = ethers.parseEther(amount.toString());
+
+            // Create message hash matching the smart contract's verification logic
+            const messageHash = ethers.solidityPackedKeccak256(
+                ["address", "uint256", "bytes32", "uint256", "uint256"],
+                [address, amountWei, nonce, expiry, chainId]
+            );
+
+            // Sign the message
+            const signature = await wallet.signMessage(ethers.getBytes(messageHash));
+
+            // 8. Update user document
+            transaction.update(userRef, {
+                // Decrease claimable balance
+                claimableBalance: admin.firestore.FieldValue.increment(-amount),
+                // Record last claim time
+                lastClaimTime: admin.firestore.FieldValue.serverTimestamp(),
+                // Store connected wallet address
+                walletAddress: address,
+                // Add to pending claims for tracking
+                pendingClaims: admin.firestore.FieldValue.arrayUnion({
+                    nonce,
+                    amount,
+                    amountWei: amountWei.toString(),
+                    address,
+                    chainId,
+                    expiry,
+                    createdAt: new Date().toISOString(),
+                    status: "pending",
+                }),
+            });
+
+            // 9. Log claim attempt
+            functions.logger.info(`Claim signature generated for user ${uid}`, {
+                address,
+                amount,
+                chainId,
+                nonce,
+            });
+
+            return {
+                signature,
+                nonce,
+                expiry,
+                amountWei: amountWei.toString(),
+                signerAddress: wallet.address,
+            };
+        });
+
+        return result;
+    } catch (error: any) {
+        if (error instanceof HttpsError) {
+            throw error;
+        }
+        functions.logger.error("Claim signature generation failed", error);
+        throw new HttpsError(
+            "internal",
+            "Failed to generate claim signature. Please try again."
+        );
+    }
+});
+
+// ============================================
+// confirmClaimSuccess - Callable Function (Gen 2)
+// ============================================
+// Called after successful on-chain claim to update user records
+export const confirmClaimSuccess = onCall(async (request) => {
+    if (!request.auth) {
+        throw new HttpsError("unauthenticated", "Authentication required.");
+    }
+
+    const { nonce, txHash } = request.data;
+    const uid = request.auth.uid;
+
+    if (!nonce || !txHash) {
+        throw new HttpsError("invalid-argument", "Missing nonce or txHash.");
+    }
+
+    const db = admin.firestore();
+    const userRef = db.collection("users").doc(uid);
+
+    try {
+        const userDoc = await userRef.get();
+        if (!userDoc.exists) {
+            throw new HttpsError("not-found", "User not found.");
+        }
+
+        const userData = userDoc.data()!;
+        const pendingClaims = userData.pendingClaims || [];
+
+        // Find and update the claim with this nonce
+        const updatedClaims = pendingClaims.map((claim: any) => {
+            if (claim.nonce === nonce) {
+                return { ...claim, status: "completed", txHash, completedAt: new Date().toISOString() };
+            }
+            return claim;
+        });
+
+        // Update the claim record
+        await userRef.update({
+            pendingClaims: updatedClaims,
+            totalClaimed: admin.firestore.FieldValue.increment(
+                pendingClaims.find((c: any) => c.nonce === nonce)?.amount || 0
+            ),
+        });
+
+        // Add transaction record
+        await userRef.collection("transactions").add({
+            type: "Claim",
+            amount: pendingClaims.find((c: any) => c.nonce === nonce)?.amount || 0,
+            date: new Date().toISOString(),
+            description: "VIEW 토큰 클레임 완료",
+            txHash,
+            nonce,
+        });
+
+        functions.logger.info(`Claim confirmed for user ${uid}`, { nonce, txHash });
+
+        return { success: true };
+    } catch (error: any) {
+        functions.logger.error("Claim confirmation failed", error);
+        throw new HttpsError("internal", "Failed to confirm claim.");
+    }
+});
+
+// ============================================
+// Existing Functions (Gen 1 Triggers)
+// ============================================
+
+// Trigger: Runs automatically when a new user is created in Authentication
+export const createUserProfile = functions.auth.user().onCreate(async (user) => {
+    const db = admin.firestore();
+
+    const newUser: UserProfile = {
+        uid: user.uid,
+        email: user.email,
+        displayName: user.displayName,
+        photoURL: user.photoURL,
+        createdAt: new Date().toISOString(),
+        lastLogin: new Date().toISOString(),
+        balance: 0,
+        claimableBalance: 0, // New field for Web3 claims
+        totalClaimed: 0, // New field for tracking total claimed
+        role: "user",
+    };
+
+
+    try {
+        // Determine the document path (users/{uid})
+        await db.collection("users").doc(user.uid).set(newUser);
+
+        // Create a sub-collection 'transactions' with an initial welcome document
+        // This ensures the sub-collection exists and is visible in the console
+        await db.collection("users").doc(user.uid).collection("transactions").add({
+            type: "Mission",
+            amount: 0,
+            date: new Date().toISOString(),
+            description: "Welcome to VIEW! Account created.",
+        });
+
+        functions.logger.info(`User Profile and initial sub-collection created for ${user.uid}`);
+    } catch (error) {
+        functions.logger.error("Error creating user profile", error);
+    }
+});
+
+// Trigger: Runs automatically when a user is deleted from Authentication
+export const deleteUserProfile = functions.auth.user().onDelete(async (user) => {
+    const db = admin.firestore();
+    const userRef = db.collection("users").doc(user.uid);
+
+    try {
+        // 1. Delete transactions subcollection
+        // Note: Firestore doesn't automatically delete subcollections. We need to delete documents manually or use a recursive delete tool.
+        // For simple use cases with limited documents (or robust recursive delete), we can fetch and delete.
+        // For production apps with large subcollections, consider using 'firebase-tools' recursive delete or specific recursive function.
+        // Since we didn't install extra tools, we'll do a simple batch delete for now (assuming reasonable size).
+
+        const batch = db.batch();
+
+        // Delete transactions
+        const transactionsSnapshot = await userRef.collection("transactions").get();
+        transactionsSnapshot.docs.forEach((doc) => {
+            batch.delete(doc.ref);
+        });
+
+        // Delete tickets
+        const ticketsSnapshot = await userRef.collection("tickets").get();
+        ticketsSnapshot.docs.forEach((doc) => {
+            batch.delete(doc.ref);
+        });
+
+        // Delete predictions
+        const predictionsSnapshot = await userRef.collection("predictions").get();
+        predictionsSnapshot.docs.forEach((doc) => {
+            batch.delete(doc.ref);
+        });
+
+        await batch.commit();
+
+        // 2. Delete the user document itself
+        await userRef.delete();
+
+        functions.logger.info(`User Profile and sub-collections deleted for ${user.uid}`);
+    } catch (error) {
+        functions.logger.error("Error deleting user profile", error);
+    }
+});
