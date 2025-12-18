@@ -265,12 +265,11 @@ const Profile: React.FC = () => {
     address: contractAddresses?.VIEW_TOKEN,
     abi: VIEW_TOKEN_ABI,
     functionName: 'balanceOf',
-    functionName: 'balanceOf',
     args: address ? [address] : undefined,
   });
 
-  // Claimable amount from Firestore (off-chain points)
-  const claimableAmount = userState.claimableBalance ?? 0; // Use claimableBalance field
+  // Claimable amount from Firestore (off-chain points are liquid and claimable)
+  const claimableAmount = userState.balance ?? 0;
 
   const handleDeleteAccount = async () => {
     if (!auth.currentUser) return;
@@ -400,7 +399,7 @@ const Profile: React.FC = () => {
         )}
 
         {/* 1. Header Section */}
-        <div className="relative bg-[#1a1b2e] text-white pt-10 pb-24 px-6 rounded-b-[40px] shadow-2xl overflow-hidden">
+        <div className="relative bg-gradient-to-br from-indigo-900 to-violet-900 text-white pt-10 pb-24 px-6 rounded-b-[40px] shadow-2xl overflow-hidden">
           {/* Abstract Background */}
           <div className="absolute top-0 left-0 w-full h-full overflow-hidden pointer-events-none">
             <div className="absolute top-[-20%] right-[-10%] w-96 h-96 bg-brand-600/20 rounded-full blur-[80px]"></div>

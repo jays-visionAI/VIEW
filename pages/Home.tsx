@@ -141,7 +141,7 @@ const Home: React.FC = () => {
         {showStaking && <StakingModal onClose={() => setShowStaking(false)} />}
 
         {/* 1. Hero / Wallet Section (Dark Theme) */}
-        <div className="relative bg-[#1a1b2e] text-white pt-8 pb-10 px-6 rounded-b-[40px] shadow-2xl overflow-hidden">
+        <div className="relative bg-gradient-to-br from-indigo-900 to-violet-900 text-white pt-8 pb-10 px-6 rounded-b-[40px] shadow-2xl overflow-hidden">
           {/* Abstract Background Shapes */}
           <div className="absolute top-0 right-0 w-80 h-80 bg-brand-600/30 rounded-full blur-[80px] -translate-y-1/2 translate-x-1/2"></div>
           <div className="absolute bottom-0 left-0 w-60 h-60 bg-blue-600/20 rounded-full blur-[60px] translate-y-1/2 -translate-x-1/4"></div>

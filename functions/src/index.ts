@@ -100,15 +100,13 @@ export const generateClaimSignature = onCall({
 
             const userData = userDoc.data()!;
 
-            // 5. Check claimable balance
-            // In production, you might have a separate 'claimableBalance' field
-            // For now, we use 'balance' as the claimable amount
-            const claimableBalance = userData.claimableBalance ?? userData.balance ?? 0;
+            // 5. Check claimable balance (now using 'balance' as the source of claimable points)
+            const claimableBalance = userData.balance ?? 0;
 
             if (amount > claimableBalance) {
                 throw new HttpsError(
                     "failed-precondition",
-                    `Insufficient claimable balance. Available: ${claimableBalance} VIEW`
+                    `Insufficient balance. Available: ${claimableBalance} VIEW`
                 );
             }
 
@@ -157,8 +155,8 @@ export const generateClaimSignature = onCall({
 
             // 8. Update user document
             transaction.update(userRef, {
-                // Decrease claimable balance
-                claimableBalance: admin.firestore.FieldValue.increment(-amount),
+                // Decrease balance (points used for claim)
+                balance: admin.firestore.FieldValue.increment(-amount),
                 // Record last claim time
                 lastClaimTime: admin.firestore.FieldValue.serverTimestamp(),
                 // Store connected wallet address

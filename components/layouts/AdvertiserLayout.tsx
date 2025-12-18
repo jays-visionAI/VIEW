@@ -4,6 +4,8 @@ import AdvertiserDashboard from '../../pages/advertiser/Dashboard';
 import CreateCampaign from '../../pages/advertiser/CreateCampaign';
 import ProposalBuilder from '../../pages/advertiser/ProposalBuilder';
 import Reports from '../../pages/advertiser/Reports';
+import WalletPage from '../../pages/advertiser/Wallet';
+import SettingsPage from '../../pages/advertiser/Settings';
 
 const AdvertiserLayout: React.FC = () => {
     const [path, setPath] = useState(window.location.pathname);
@@ -39,6 +41,8 @@ const AdvertiserLayout: React.FC = () => {
         }
         if (path === '/advertiser/proposal') return <ProposalBuilder />;
         if (path === '/advertiser/reports') return <Reports />;
+        if (path === '/advertiser/wallet') return <WalletPage />;
+        if (path === '/advertiser/settings') return <SettingsPage />;
         // Fallback for unimplemented routes
         return (
             <div className="flex flex-col items-center justify-center h-full text-gray-400">

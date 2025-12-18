@@ -1,18 +1,19 @@
 import React, { useState, useEffect } from 'react';
 import { useSettings, BoosterTier, ReferralRewardConfig } from '../context/SettingsContext';
-import { Settings, Coins, TrendingUp, Users, Save, Plus, Trash2, Loader2, RefreshCw, Lock, Search, LogOut, Database, Home, PieChart as PieChartIcon, BarChart3, AlertTriangle } from 'lucide-react';
+import { Settings, Coins, TrendingUp, Users, Save, Plus, Trash2, Loader2, RefreshCw, Lock, Search, LogOut, Database, Home, PieChart as PieChartIcon, BarChart3, AlertTriangle, FileText } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, Legend, PieChart, Pie, Cell, ResponsiveContainer } from 'recharts';
 import { httpsCallable } from 'firebase/functions';
 import { functions, db, auth } from '../firebase';
 import { collection, getDocs, query, orderBy, limit, doc, getDoc } from 'firebase/firestore';
 import { GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged, User } from 'firebase/auth';
+import DocumentArchive from '../components/admin/DocumentArchive';
 
 // Admin emails whitelist (can also be stored in Firestore /settings/admin)
 const ADMIN_EMAILS = [
     'jays@visai.io',
 ];
 
-type TabType = 'users' | 'tokenomics' | 'staking' | 'referral' | 'taxonomy' | 'personas';
+type TabType = 'users' | 'tokenomics' | 'staking' | 'referral' | 'taxonomy' | 'personas' | 'documents';
 
 interface UserData {
     uid: string;
@@ -476,6 +477,13 @@ export const AdminPage: React.FC = () => {
                     >
                         <BarChart3 size={20} />
                         <span>Persona Stats</span>
+                    </button>
+                    <button
+                        onClick={() => setActiveTab('documents')}
+                        className={`w-full flex items-center space-x-3 px-4 py-3 rounded-xl transition-colors ${activeTab === 'documents' ? 'bg-brand-50 text-brand-600 font-bold' : 'text-gray-500 hover:bg-gray-50'}`}
+                    >
+                        <FileText size={20} />
+                        <span>Documents</span>
                     </button>
                     <a
                         href="/"
@@ -1179,6 +1187,11 @@ export const AdminPage: React.FC = () => {
                                     </div>
                                 )}
                             </div>
+                        )}
+
+                        {/* Documents Tab */}
+                        {activeTab === 'documents' && (
+                            <DocumentArchive />
                         )}
                     </div>
                 </div>
