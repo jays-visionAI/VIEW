@@ -241,18 +241,127 @@ export const AdminPage: React.FC = () => {
         setTimeout(() => setPriceMessage(null), 5000);
     };
 
-    // Taxonomy Upload Handler
-    const handleUploadTaxonomy = async () => {
+    // Taxonomy Upload Handler - Industry/Attribute Separation
+    const handleUploadTaxonomy = async (mode: 'industry' | 'attribute' | 'both' | 'legacy' = 'both') => {
         if (!functions) return;
         setIsUploadingTaxonomy(true);
         setTaxonomyMessage(null);
         try {
             const uploadTaxonomy = httpsCallable(functions, 'uploadTaxonomy');
-            const result = await uploadTaxonomy({});
+
+            // Industry Taxonomy v1.1
+            const industryData = mode === 'attribute' ? undefined : {
+                version: '1.1',
+                lastUpdated: '2025-12-19',
+                taxonomy: {
+                    Fashion: {
+                        Apparel: ['Menswear', 'Womenswear', 'Sportswear', 'Outdoorwear', 'Kidswear', 'Maternity', 'Plus_Size'],
+                        Footwear: ['Sneakers', 'Sandals', 'Boots', 'High_Heels', 'Loafers', 'Athletic_Shoes'],
+                        Accessories: ['Bags', 'Watches', 'Jewelry', 'Belts', 'Glasses', 'Hats', 'Scarves', 'Wallets'],
+                    },
+                    Beauty: {
+                        Skincare: ['Anti_Aging', 'Whitening', 'Moisturizing', 'Sunscreen', 'Serum', 'Toner', 'Essence'],
+                        Makeup: ['Lipstick', 'Foundation', 'Mascara', 'Eyeliner', 'Blusher', 'Concealer', 'Primer'],
+                        Haircare: ['Shampoo', 'Conditioner', 'Treatment', 'Styling', 'Hair_Color', 'Scalp_Care'],
+                        Fragrance: ['Perfume', 'Body_Mist', 'Home_Fragrance', 'Niche_Perfume'],
+                        Tools_Devices: ['Makeup_Brushes', 'Beauty_Devices', 'Hair_Dryers', 'Straighteners'],
+                    },
+                    Technology: {
+                        Consumer_Electronics: ['Smartphone', 'Laptop', 'Tablet', 'Smartwatch', 'Headphones', 'Camera', 'Drone'],
+                        Software: ['Productivity', 'Security', 'Cloud_Service', 'AI_Application', 'CRM', 'Design_Tools'],
+                        Gaming: ['Console', 'PC_Game', 'Mobile_Game', 'VR_AR', 'Esports', 'Gaming_Accessories'],
+                        Smart_Home: ['Smart_Speaker', 'Smart_Lighting', 'Smart_Security', 'Smart_Thermostat', 'Robot_Vacuum'],
+                        Wearables: ['Fitness_Tracker', 'Smart_Ring', 'AR_Glasses', 'Health_Monitor'],
+                    },
+                    Food_Beverage: {
+                        Restaurant: ['Fine_Dining', 'Casual_Dining', 'Fast_Food', 'Cafe', 'Bakery', 'Food_Truck'],
+                        Beverage: ['Coffee', 'Tea', 'Juice', 'Alcohol', 'Energy_Drink', 'Craft_Beer', 'Wine'],
+                        Grocery: ['Organic_Food', 'Snack', 'Frozen_Food', 'Dairy_Product', 'Fresh_Produce', 'Meat_Seafood'],
+                        Delivery_Service: ['Meal_Kit', 'Food_Delivery_Platform', 'Grocery_Delivery', 'Subscription_Box'],
+                    },
+                    Travel: {
+                        Airline: ['Budget', 'Full_Service', 'Charter', 'Business_Class', 'First_Class'],
+                        Hotel: ['Resort', 'Boutique', 'Business', 'Capsule', 'Hostel', 'Vacation_Rental'],
+                        Tour: ['Honeymoon', 'Cultural', 'Adventure', 'Wellness', 'Food_Tour', 'Photography'],
+                        Transportation: ['Train', 'Bus', 'Car_Rental', 'Cruise', 'Bike_Rental'],
+                    },
+                    Finance: {
+                        Banking: ['Savings_Account', 'Loan', 'Credit_Card', 'Payment_App', 'Mortgage'],
+                        Investment: ['Stocks', 'ETF', 'Crypto', 'Real_Estate_Fund', 'Bonds', 'Mutual_Fund'],
+                        Insurance: ['Life', 'Health', 'Car', 'Travel', 'Property', 'Pet'],
+                        Fintech: ['Digital_Wallet', 'Robo_Advisor', 'DeFi', 'P2P_Lending', 'BNPL', 'Neobank'],
+                    },
+                    Health_Wellness: {
+                        Fitness: ['Gym', 'Yoga', 'Pilates', 'Home_Training', 'CrossFit', 'Swimming', 'Martial_Arts'],
+                        Nutrition: ['Supplements', 'Vitamins', 'Protein', 'Health_Drinks', 'Probiotics'],
+                        Medical_Service: ['Clinic', 'Dental', 'Dermatology', 'Aesthetic', 'Telemedicine'],
+                        Mental_Health: ['Meditation', 'Counseling', 'Therapy', 'Stress_Management', 'Mindfulness'],
+                    },
+                    Education: {
+                        Online_Course: ['Language', 'Programming', 'Business', 'Design', 'Music', 'Data_Science'],
+                        Institution: ['University', 'College', 'Vocational_School', 'Tutoring_Center'],
+                        Certification: ['MBA', 'TOEFL', 'IELTS', 'Blockchain_Certification', 'AI_Engineer', 'AWS'],
+                        EdTech: ['LMS', 'Online_Tutoring', 'Study_App', 'Assessment_Tool'],
+                    },
+                    Entertainment: {
+                        Streaming: ['OTT', 'Music', 'Podcast', 'Webtoon', 'Live_Streaming'],
+                        Event: ['Concert', 'Exhibition', 'Festival', 'Theater', 'Fan_Meeting'],
+                        Media: ['TV_Channel', 'Influencer', 'Magazine', 'YouTube', 'TikTok'],
+                        Sports: ['Football', 'Golf', 'eSports', 'Basketball', 'Tennis', 'Running'],
+                    },
+                    Home_Living: {
+                        Furniture: ['Sofa', 'Bed', 'Table', 'Lighting', 'Chair', 'Storage'],
+                        Interior: ['Wallpaper', 'Flooring', 'Home_Decor', 'Curtains', 'Rugs', 'Plants'],
+                        Appliances: ['Refrigerator', 'Washing_Machine', 'Air_Conditioner', 'Vacuum', 'Air_Purifier'],
+                        Real_Estate: ['Apartment', 'Villa', 'Commercial', 'Rental_Service', 'Co_Living'],
+                    },
+                    Auto_Mobility: {
+                        Vehicle: ['Electric_Vehicle', 'SUV', 'Sedan', 'Motorcycle', 'Truck', 'Hybrid'],
+                        Service: ['Ride_Sharing', 'Car_Sharing', 'Maintenance', 'Charging_Station', 'Car_Wash'],
+                        Accessories: ['Tire', 'Battery', 'Navigation', 'Dashcam', 'Car_Audio', 'Safety_Equipment'],
+                    },
+                    Media_Publishing: {
+                        Books: ['Fiction', 'Nonfiction', 'Self_Help', 'Business', 'Finance', 'Children', 'Lifestyle'],
+                        Digital_Books: ['eBook', 'Interactive_Book', 'Serialized_Fiction'],
+                        Audio_Content: ['Audiobook', 'Audio_Series', 'Podcast_Original'],
+                        Periodicals: ['Newsletter', 'Magazine_Subscription', 'Paid_Community'],
+                        Author_Brand: ['Book_Launch', 'Speaking', 'Fan_Membership', 'Merchandise'],
+                    },
+                    ESG_Impact: {
+                        Environment: ['Carbon_Offset', 'Recycling', 'Clean_Energy', 'Water_Conservation'],
+                        Social: ['Donation_Platform', 'Volunteer_Organization', 'Community_Development'],
+                        Green_Tech: ['Solar_Energy', 'Wind_Energy', 'EV_Infrastructure', 'Smart_Grid'],
+                    },
+                }
+            };
+
+            // Attribute Taxonomy v1.0
+            const attributeData = mode === 'industry' ? undefined : {
+                version: '1.0',
+                lastUpdated: '2025-12-19',
+                attributes: {
+                    Price_Positioning: { description: '가격 포지셔닝', values: ['Mass', 'Value', 'Mid', 'Premium', 'Luxury', 'Ultra_Luxury'] },
+                    Sustainability: { description: '지속가능성', values: ['Eco_Friendly', 'Upcycled', 'Fair_Trade', 'Vegan', 'Cruelty_Free', 'Organic', 'Zero_Waste'] },
+                    Business_Model: { description: '비즈니스 모델', values: ['Direct_To_Consumer', 'Marketplace', 'Subscription', 'Rental', 'Resale', 'Secondhand', 'On_Demand'] },
+                    Brand_Type: { description: '브랜드 유형', values: ['Legacy_Brand', 'Designer_Brand', 'Indie_Brand', 'Creator_Brand', 'Local_Brand', 'Global_Brand'] },
+                    Product_Lifecycle: { description: '제품 수명주기', values: ['New_Launch', 'Limited_Edition', 'Seasonal', 'Evergreen', 'Preorder', 'Flash_Sale'] },
+                    Audience_Lifecycle: { description: '타겟 라이프스타일', values: ['Student', 'Early_Career', 'Young_Professional', 'Family', 'Mid_Career', 'Senior'] },
+                    Channel_Preference: { description: '채널 선호', values: ['Online_First', 'Offline_First', 'Omnichannel', 'Mobile_First', 'Social_Commerce'] },
+                    Purchase_Decision_Style: { description: '구매 결정 스타일', values: ['Impulse', 'Deal_Seeker', 'Research_Heavy', 'Brand_Loyal', 'Trend_Seeker', 'Quality_Focused'] },
+                    Offer_Format: { description: '제공 형식', values: ['Physical_Product', 'Digital_Product', 'Service', 'Experience', 'Event', 'Membership'] },
+                    Target_Gender: { description: '타겟 성별', values: ['Male', 'Female', 'Unisex'] },
+                }
+            };
+
+            const result = await uploadTaxonomy({
+                industryData,
+                attributeData,
+                legacyMode: mode === 'legacy'
+            });
             const data = result.data as any;
 
             if (data.success) {
-                setTaxonomyMessage(`✅ ${data.message} (${data.stats.industries}개 산업)`);
+                setTaxonomyMessage(`✅ ${data.message || 'Taxonomy 업로드 완료'} - ${data.results?.join(', ')}`);
             } else {
                 setTaxonomyMessage(`❌ 업로드 실패`);
             }
@@ -260,7 +369,7 @@ export const AdminPage: React.FC = () => {
             setTaxonomyMessage(`오류: ${error.message}`);
         }
         setIsUploadingTaxonomy(false);
-        setTimeout(() => setTaxonomyMessage(null), 10000);
+        setTimeout(() => setTaxonomyMessage(null), 15000);
     };
 
     // Surveys Upload Handler
@@ -990,27 +1099,42 @@ export const AdminPage: React.FC = () => {
                                         </div>
                                     </div>
 
-                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                                    <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
                                         <div className="bg-white rounded-xl p-4 text-center">
-                                            <p className="text-3xl font-black text-green-600">12</p>
+                                            <p className="text-3xl font-black text-green-600">13</p>
                                             <p className="text-xs text-gray-500">산업 분류</p>
                                         </div>
                                         <div className="bg-white rounded-xl p-4 text-center">
-                                            <p className="text-3xl font-black text-green-600">44</p>
-                                            <p className="text-xs text-gray-500">제품군</p>
+                                            <p className="text-3xl font-black text-green-600">60+</p>
+                                            <p className="text-xs text-gray-500">카테고리</p>
                                         </div>
                                         <div className="bg-white rounded-xl p-4 text-center">
-                                            <p className="text-3xl font-black text-green-600">183</p>
-                                            <p className="text-xs text-gray-500">세부 카테고리</p>
+                                            <p className="text-3xl font-black text-green-600">400+</p>
+                                            <p className="text-xs text-gray-500">서브카테고리</p>
+                                        </div>
+                                        <div className="bg-white rounded-xl p-4 text-center border-2 border-indigo-200">
+                                            <p className="text-3xl font-black text-indigo-600">10</p>
+                                            <p className="text-xs text-gray-500">속성 유형 (NEW)</p>
                                         </div>
                                     </div>
 
-                                    <div className="flex items-center justify-between">
-                                        <p className="text-sm text-gray-600">
-                                            Firestore <code className="bg-white px-2 py-0.5 rounded text-xs">/taxonomy/v1</code>에 데이터를 업로드합니다.
-                                        </p>
+                                    <div className="bg-white rounded-xl p-4 mb-4">
+                                        <h4 className="text-sm font-bold text-gray-700 mb-3">Taxonomy 구조 (v1.1)</h4>
+                                        <div className="grid grid-cols-2 gap-4 text-sm">
+                                            <div>
+                                                <span className="font-medium text-brand-600">Industry (What)</span>
+                                                <p className="text-gray-500 text-xs">무엇을 파는가: Fashion.Apparel.Womenswear</p>
+                                            </div>
+                                            <div>
+                                                <span className="font-medium text-indigo-600">Attribute (How)</span>
+                                                <p className="text-gray-500 text-xs">어떻게 파는가: Sustainability.Eco_Friendly</p>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div className="flex flex-wrap items-center gap-3">
                                         <button
-                                            onClick={handleUploadTaxonomy}
+                                            onClick={() => handleUploadTaxonomy('both')}
                                             disabled={isUploadingTaxonomy}
                                             className="flex items-center gap-2 px-6 py-3 bg-green-500 text-white font-bold rounded-xl hover:bg-green-600 disabled:opacity-50 transition-all"
                                         >
@@ -1019,9 +1143,26 @@ export const AdminPage: React.FC = () => {
                                             ) : (
                                                 <Database size={18} />
                                             )}
-                                            Taxonomy 업로드
+                                            전체 업로드 (v1.1)
+                                        </button>
+                                        <button
+                                            onClick={() => handleUploadTaxonomy('industry')}
+                                            disabled={isUploadingTaxonomy}
+                                            className="flex items-center gap-2 px-4 py-2 bg-brand-100 text-brand-700 font-medium rounded-xl hover:bg-brand-200 disabled:opacity-50 transition-all text-sm"
+                                        >
+                                            Industry만
+                                        </button>
+                                        <button
+                                            onClick={() => handleUploadTaxonomy('attribute')}
+                                            disabled={isUploadingTaxonomy}
+                                            className="flex items-center gap-2 px-4 py-2 bg-indigo-100 text-indigo-700 font-medium rounded-xl hover:bg-indigo-200 disabled:opacity-50 transition-all text-sm"
+                                        >
+                                            Attribute만
                                         </button>
                                     </div>
+                                    <p className="text-xs text-gray-500 mt-2">
+                                        Firestore: <code className="bg-white px-2 py-0.5 rounded text-xs">settings/taxonomy_industry</code>, <code className="bg-white px-2 py-0.5 rounded text-xs">settings/taxonomy_attributes</code>
+                                    </p>
                                     {taxonomyMessage && (
                                         <p className={`text-sm mt-4 font-medium ${taxonomyMessage.includes('✅') ? 'text-green-600' : 'text-red-500'}`}>
                                             {taxonomyMessage}
@@ -1030,12 +1171,20 @@ export const AdminPage: React.FC = () => {
                                 </div>
 
                                 <div className="bg-gray-50 rounded-xl p-4">
-                                    <h4 className="text-sm font-bold text-gray-700 mb-3">포함된 산업 분류</h4>
-                                    <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-                                        {['패션 👗', '뷰티 💄', '식음료 🍔', '여행 ✈️', '금융 💰', '기술 📱', '교육 📚', '건강 💪', '자동차 🚗', '홈/리빙 🏠', '엔터테인먼트 🎬', 'ESG 🌱'].map(industry => (
+                                    <h4 className="text-sm font-bold text-gray-700 mb-3">포함된 산업 분류 (Industry)</h4>
+                                    <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mb-4">
+                                        {['패션 👗', '뷰티 💄', '식음료 🍔', '여행 ✈️', '금융 💰', '기술 📱', '교육 📚', '건강 💪', '자동차 🚗', '홈/리빙 🏠', '엔터테인먼트 🎬', 'ESG 🌱', '미디어/출판 📖'].map(industry => (
                                             <div key={industry} className="bg-white rounded-lg px-3 py-2 text-sm text-gray-600">
                                                 {industry}
                                             </div>
+                                        ))}
+                                    </div>
+                                    <h4 className="text-sm font-bold text-gray-700 mb-3">속성 유형 (Attribute)</h4>
+                                    <div className="flex flex-wrap gap-2">
+                                        {['가격 포지셔닝', '지속가능성', '비즈니스 모델', '브랜드 유형', '제품 수명주기', '타겟 라이프스타일', '채널 선호', '구매 결정 스타일', '제공 형식', '타겟 성별'].map(attr => (
+                                            <span key={attr} className="px-3 py-1 bg-indigo-100 text-indigo-700 rounded-full text-xs font-medium">
+                                                {attr}
+                                            </span>
                                         ))}
                                     </div>
                                 </div>

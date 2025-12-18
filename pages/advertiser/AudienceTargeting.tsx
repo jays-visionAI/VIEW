@@ -1,13 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import {
     Building2, Users, Target, ChevronRight, ChevronDown, Check,
-    Sliders, BarChart3, Globe, MapPin, Package, Tags, Filter
+    Sliders, BarChart3, Globe, MapPin, Package, Tags, Filter, Loader2
 } from 'lucide-react';
 import {
     RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis,
     Radar, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, Cell
 } from 'recharts';
 import { useApp } from '../../context/AppContext';
+import { functions } from '../../firebase';
+import { httpsCallable } from 'firebase/functions';
 
 // ============================================
 // INDUSTRY TAXONOMY (What is being sold)
@@ -175,6 +177,11 @@ const AudienceTargeting: React.FC = () => {
     const [expandedCategories, setExpandedCategories] = useState<string[]>([]);
     const [expandedAttributes, setExpandedAttributes] = useState<string[]>([]);
 
+    // Dynamic taxonomy from Firestore
+    const [industryTaxonomy, setIndustryTaxonomy] = useState<Record<string, Record<string, string[]>>>(INDUSTRY_TAXONOMY);
+    const [attributeTaxonomy, setAttributeTaxonomy] = useState<Record<string, { description: string; values: string[] }>>(ATTRIBUTE_TAXONOMY);
+    const [taxonomyLoaded, setTaxonomyLoaded] = useState(false);
+
     const [formData, setFormData] = useState<TargetingData>({
         selectedIndustry: [],
         productName: '',
@@ -186,13 +193,38 @@ const AudienceTargeting: React.FC = () => {
         matchedPersonas: [],
     });
 
-    // Initialize traits with default range [0.3, 0.7]
+    // Initialize traits with default range [0.3, 0.7] and load taxonomy from Firestore
     useEffect(() => {
         const defaultTraits: Record<string, [number, number]> = {};
         TRAITS_CONFIG.forEach(t => {
             defaultTraits[t.key] = [0.3, 0.7];
         });
         setFormData(prev => ({ ...prev, targetTraits: defaultTraits }));
+
+        // Load taxonomy from Firestore
+        const loadTaxonomy = async () => {
+            if (!functions) return;
+            try {
+                const getTaxonomy = httpsCallable(functions, 'getTaxonomy');
+                const result = await getTaxonomy({});
+                const data = result.data as any;
+
+                if (data.success) {
+                    if (data.industry?.taxonomy) {
+                        setIndustryTaxonomy(data.industry.taxonomy);
+                    }
+                    if (data.attributes?.attributes) {
+                        setAttributeTaxonomy(data.attributes.attributes);
+                    }
+                }
+                setTaxonomyLoaded(true);
+            } catch (error) {
+                console.warn('Using fallback static taxonomy:', error);
+                setTaxonomyLoaded(true);
+            }
+        };
+
+        loadTaxonomy();
     }, []);
 
     const steps = [
@@ -338,7 +370,7 @@ const AudienceTargeting: React.FC = () => {
                                 </h3>
                                 <p className="text-sm text-gray-500 mb-4">무엇을 판매/제공하는지 선택하세요</p>
                                 <div className="border border-gray-200 rounded-xl max-h-[450px] overflow-auto">
-                                    {Object.entries(INDUSTRY_TAXONOMY).map(([industry, categories]) => (
+                                    {Object.entries(industryTaxonomy).map(([industry, categories]) => (
                                         <div key={industry} className="border-b border-gray-100 last:border-b-0">
                                             <button
                                                 onClick={() => toggleIndustry(industry)}
@@ -494,7 +526,7 @@ const AudienceTargeting: React.FC = () => {
                                 </h3>
                                 <p className="text-sm text-gray-500 mb-4">어떤 특성으로 판매하는지 선택</p>
                                 <div className="border border-gray-200 rounded-xl max-h-[400px] overflow-auto">
-                                    {Object.entries(ATTRIBUTE_TAXONOMY).map(([attrType, attrData]) => (
+                                    {(Object.entries(attributeTaxonomy) as [string, { description: string; values: string[] }][]).map(([attrType, attrData]) => (
                                         <div key={attrType} className="border-b border-gray-100 last:border-b-0">
                                             <button
                                                 onClick={() => toggleAttribute(attrType)}
@@ -674,7 +706,7 @@ const AudienceTargeting: React.FC = () => {
                                         속성 필터 (How)
                                     </h3>
                                     <div className="flex flex-wrap gap-2">
-                                        {Object.entries(formData.selectedAttributes).map(([type, values]) =>
+                                        {(Object.entries(formData.selectedAttributes) as [string, string[] | undefined][]).map(([type, values]) =>
                                             values?.map(value => (
                                                 <span key={`${type}-${value}`} className="px-2 py-1 bg-indigo-100 text-indigo-700 rounded-lg text-xs">
                                                     {type.replace(/_/g, ' ')}: {value.replace(/_/g, ' ')}
