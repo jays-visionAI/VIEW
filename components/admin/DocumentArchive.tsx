@@ -296,6 +296,104 @@ const DocumentArchive: React.FC = () => {
                         <Plus size={18} />
                         새 문서
                     </button>
+                    <button
+                        onClick={async () => {
+                            if (!db) return;
+                            const title = 'BTC Prediction Game Enhancement Results';
+                            // Check if exists
+                            const existing = documents.find(d => d.title === title);
+                            if (existing) {
+                                alert('Document already exists!');
+                                return;
+                            }
+
+                            const content = `
+# Walkthrough - BTC Prediction Game Enhancement
+
+I have successfully enhanced the BTC Prediction Game with a Jackpot system, improved betting UI, and better admin tools.
+
+## Key Features Implemented
+
+### 1. Jackpot System
+- **Logic**: 50/10/40 Split (Winner/Jackpot/Platform).
+- **Accumulation**: If no exact integer match, 10% Jackpot pool rolls over to the next round.
+- **Payout**: Winners matching the exact integer price share the accumulated Jackpot + current round's Jackpot pool.
+
+### 2. User Interface Updates
+- **Reward Page**: 
+    - Input changed to **Exact Price** (integer).
+    - Automatic range selection based on input.
+    - Real-time Jackpot amount display.
+- **Profile Page**:
+    - Added **Prediction History** section.
+    - Displays Round #, Predicted Price, Result, and Rewards (including Jackpot).
+
+### 3. Admin & Backend
+- **Cloud Functions**: 
+    - Refactored \`settlePredictionGame\` for reliability and new logic.
+    - Added \`getJackpotStatus\` to fetch current jackpot.
+- **Admin Panel**:
+    - Updated \`PredictionAdmin\` to show Round ID, Jackpot stats, and detailed winner lists.
+
+## Files Changed
+
+| File | Change |
+|------|--------|
+| [index.ts](file:///Users/sangjaeseo/Antigravity/VIEW/functions/src/index.ts) | Implementation of Jackpot logic, Round ID, and 50/10/40 split. |
+| [Reward.tsx](file:///Users/sangjaeseo/Antigravity/VIEW/pages/Reward.tsx) | Updated betting input to Exact Price and added Jackpot display. |
+| [Profile.tsx](file:///Users/sangjaeseo/Antigravity/VIEW/pages/Profile.tsx) | Added Prediction History section. |
+| [PredictionAdmin.tsx](file:///Users/sangjaeseo/Antigravity/VIEW/components/admin/PredictionAdmin.tsx) | Added Jackpot monitoring and Round ID display. |
+| [types.ts](file:///Users/sangjaeseo/Antigravity/VIEW/types.ts) | Updated interfaces for Prediction and PredictionRound. |
+
+## Database Updates
+
+### \`/predictionRounds/{DOC_ID}\`
+Added fields:
+- \`roundId\` (int)
+- \`jackpotPool\` (number)
+- \`jackpotCarriedOver\` (number)
+- \`totalJackpotPayout\` (number)
+- \`nextJackpotAmount\` (number)
+- \`winners[].isJackpot\` (boolean)
+- \`jackpotWinners[]\` (array)
+
+### \`/settings/jackpot\`
+New document:
+\`\`\`json
+{
+  "currentAmount": 1500,
+  "lastUpdated": "TIMESTAMP"
+}
+\`\`\`
+
+### \`/counters/predictionRound\`
+New document:
+\`\`\`json
+{
+  "lastRoundId": 12
+}
+\`\`\`
+`;
+                            try {
+                                await addDoc(collection(db, 'documents'), {
+                                    title,
+                                    content,
+                                    category: 'reports',
+                                    createdAt: serverTimestamp(),
+                                    updatedAt: serverTimestamp(),
+                                });
+                                loadDocuments();
+                                alert('Report uploaded successfully!');
+                            } catch (e) {
+                                console.error(e);
+                                alert('Failed to upload report');
+                            }
+                        }}
+                        className="px-4 py-2 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 flex items-center gap-2"
+                    >
+                        <Download size={18} />
+                        결과 리포트 생성
+                    </button>
                 </div>
             </div>
 
@@ -349,8 +447,8 @@ const DocumentArchive: React.FC = () => {
                                 key={d.id}
                                 onClick={() => setSelectedDoc(d)}
                                 className={`w-full text-left p-4 rounded-xl border transition-all ${selectedDoc?.id === d.id
-                                        ? 'border-brand-500 bg-brand-50'
-                                        : 'border-gray-100 bg-white hover:border-gray-200'
+                                    ? 'border-brand-500 bg-brand-50'
+                                    : 'border-gray-100 bg-white hover:border-gray-200'
                                     }`}
                             >
                                 <div className="flex items-start gap-3">

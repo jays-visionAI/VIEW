@@ -2376,3 +2376,4 @@ export const getJackpotStatus = functions.https.onCall(async (data, context) => 
         return { success: false, error: error.message };
     }
 });
+
