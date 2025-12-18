@@ -400,6 +400,10 @@ const Reward: React.FC = () => {
   const [percentChange, setPercentChange] = useState(0);
   const [currentPrice, setCurrentPrice] = useState(66450);
 
+  // Jackpot State
+  const [jackpotAmount, setJackpotAmount] = useState(0);
+  const [predictedPriceInput, setPredictedPriceInput] = useState<string>('');
+
   // Survey Quest State
   const [surveys, setSurveys] = useState<any[]>([]);
   const [surveyResponses, setSurveyResponses] = useState<Record<string, any>>({});
@@ -505,15 +509,39 @@ const Reward: React.FC = () => {
     };
 
     fetchSurveys();
+
+    // Fetch Jackpot
+    const fetchJackpot = async () => {
+      try {
+        const functions = getFunctions();
+        const getJackpot = httpsCallable(functions, 'getJackpotStatus');
+        const res: any = await getJackpot();
+        if (res.data.success) {
+          setJackpotAmount(res.data.currentAmount);
+        }
+      } catch (e) {
+        console.error("Failed to fetch jackpot", e);
+      }
+    };
+    fetchJackpot();
   }, []);
 
   // Prediction Handler
   const handlePredict = async () => {
-    if (!selectedRange || hasPredictedToday || betAmount <= 0) return;
-    if (betAmount > userState.balance) {
-      return;
-    }
-    await submitPrediction(activeCoin, selectedRange, currentPrice, betAmount);
+    if (!predictedPriceInput || hasPredictedToday || betAmount <= 0) return;
+    if (betAmount > userState.balance) return;
+
+    // Auto calculate range based on input
+    const pPrice = parseInt(predictedPriceInput.replace(/,/g, ''));
+    if (isNaN(pPrice)) return;
+
+    const rangeStep = activeCoin === 'bitcoin' ? 500 : 50;
+    const lowerBound = Math.floor(pPrice / rangeStep) * rangeStep;
+    const upperBound = lowerBound + rangeStep;
+    const range = `$${lowerBound.toLocaleString()} ~ $${upperBound.toLocaleString()}`;
+
+    await submitPrediction(activeCoin, range, currentPrice, betAmount, pPrice);
+    setPredictedPriceInput('');
     setSelectedRange(null);
   };
 
@@ -822,11 +850,66 @@ const Reward: React.FC = () => {
                       ? 'bg-white/20 text-white'
                       : 'bg-gray-100 text-gray-400'
                       }`}>
-                      {range.participants}명 선택
+                      {isSelected ? '선택됨' : `${range.participants}명`}
                     </span>
                   </button>
                 );
               })}
+            </div>
+
+            {/* Price Input & Jackpot Info */}
+            <div className="bg-yellow-50 rounded-2xl p-4 border border-yellow-200 mb-6">
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center gap-2">
+                  <Trophy className="text-yellow-600" size={20} />
+                  <span className="font-bold text-yellow-800">JACKPOT</span>
+                </div>
+                <span className="font-black text-xl text-yellow-600">
+                  {jackpotAmount.toLocaleString()} VIEW
+                </span>
+              </div>
+
+              <div className="relative">
+                <label className="block text-xs font-medium text-yellow-800 mb-1">
+                  정확한 종가(정수)를 예측하면 잭팟 당첨!
+                </label>
+                <input
+                  type="text"
+                  value={predictedPriceInput}
+                  onChange={(e) => {
+                    const val = e.target.value.replace(/[^0-9]/g, '');
+                    setPredictedPriceInput(val ? Number(val).toLocaleString() : '');
+
+                    // Auto Select Range logic
+                    if (val) {
+                      const pPrice = parseInt(val);
+                      const rangeStep = activeCoin === 'bitcoin' ? 500 : 50;
+                      const lowerBound = Math.floor(pPrice / rangeStep) * rangeStep;
+                      const upperBound = lowerBound + rangeStep;
+                      const rangeLabel = `$${lowerBound.toLocaleString()} ~ $${upperBound.toLocaleString()}`;
+
+                      // Find matching range label if it exists in predictionRanges? 
+                      // Actually predictionRanges are dynamic based on CURRENT price, 
+                      // but user might predict something far away. 
+                      // For UI consistency, we just highlight the range if it matches one of the displayed ones, 
+                      // or just show the calculated range.
+
+                      // Simplification: Just set selectedRange to the string provided by calculation
+                      setSelectedRange(rangeLabel);
+                    } else {
+                      setSelectedRange(null);
+                    }
+                  }}
+                  disabled={hasPredictedToday}
+                  className="w-full px-4 py-3 border-2 border-yellow-400 rounded-xl focus:outline-none focus:ring-4 focus:ring-yellow-400/30 text-center font-black text-xl text-gray-800"
+                  placeholder="예측 가격 입력 (예: 105234)"
+                />
+                {selectedRange && (
+                  <div className="text-center mt-2 text-xs font-bold text-gray-500">
+                    예측 범위: {selectedRange}
+                  </div>
+                )}
+              </div>
             </div>
 
             {/* Bet Amount Input */}
@@ -865,18 +948,18 @@ const Reward: React.FC = () => {
             </div>
 
             <button
-              disabled={!selectedRange || hasPredictedToday || betAmount <= 0 || betAmount > userState.balance}
+              disabled={!predictedPriceInput || hasPredictedToday || betAmount <= 0 || betAmount > userState.balance}
               onClick={handlePredict}
               className={`
                 w-full font-bold py-4 rounded-2xl transition-all shadow-lg active:scale-[0.98] flex items-center justify-center space-x-2
-                ${(!selectedRange && !hasPredictedToday) || hasPredictedToday || betAmount <= 0 || betAmount > userState.balance
+                ${(!predictedPriceInput && !hasPredictedToday) || hasPredictedToday || betAmount <= 0 || betAmount > userState.balance
                   ? 'bg-gray-100 text-gray-400 cursor-not-allowed shadow-none'
                   : 'bg-gray-900 text-white hover:bg-black shadow-gray-900/20'
                 }
               `}
             >
               <span>{hasPredictedToday ? '이미 참여 완료' : `${currentConfig.symbol} 예측 제출하기`}</span>
-              {!hasPredictedToday && <span className={`px-2 py-0.5 rounded text-[10px] font-extrabold ${!selectedRange || betAmount <= 0 ? 'bg-gray-200 text-gray-400' : 'bg-white/20 text-white'}`}>-{betAmount.toLocaleString()} VIEW</span>}
+              {!hasPredictedToday && <span className={`px-2 py-0.5 rounded text-[10px] font-extrabold ${!predictedPriceInput || betAmount <= 0 ? 'bg-gray-200 text-gray-400' : 'bg-white/20 text-white'}`}>-{betAmount.toLocaleString()} VIEW</span>}
             </button>
           </div>
         </div>

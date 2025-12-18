@@ -51,8 +51,46 @@ export interface Prediction {
   id: string;
   coin: 'bitcoin' | 'ethereum';
   range: string;
+  predictedPrice?: number;
+  betAmount?: number;
   predictedAt: any; // Firestore Timestamp
   status: 'Pending' | 'Won' | 'Lost';
+  reward?: number;
+  rangeWon?: boolean;
+  jackpotWon?: boolean;
+  roundId?: number;
+  actualPrice?: number;
+}
+
+export interface PredictionRound {
+  id?: string;
+  roundId?: number;
+  date: string;
+  status: 'open' | 'closed' | 'settled';
+  actualPrice?: number;
+  winningRange?: string;
+
+  totalPool: number;
+  winnerPool?: number;
+  jackpotPool?: number;
+  platformPool?: number;
+
+  participantCount: number;
+  totalWinners: number;
+  totalDistributed: number;
+  winnerPoolPercent: number;
+
+  jackpotCarriedOver?: number;
+  totalJackpotPayout?: number;
+  nextJackpotAmount?: number;
+
+  winners?: {
+    userId: string;
+    displayName: string;
+    betAmount: number;
+    reward: number;
+    isJackpot?: boolean;
+  }[];
 }
 
 export interface UserState {

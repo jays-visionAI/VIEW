@@ -8,20 +8,29 @@ import { functions } from '../../firebase';
 
 interface PredictionRound {
     id: string;
+    roundId?: number;
     date: string;
     status: 'open' | 'closed' | 'settled';
     actualPrice?: number;
     winningRange?: string;
     totalPool: number;
+    jackpotPool?: number;
+    jackpotCarriedOver?: number;
     participantCount: number;
     totalWinners: number;
     totalDistributed: number;
     winnerPoolPercent: number;
     winners?: {
-        oderId: string;
+        userId: string;
         displayName: string;
         betAmount: number;
         reward: number;
+        isJackpot?: boolean;
+    }[];
+    jackpotWinners?: {
+        userId: string;
+        displayName: string;
+        amount: number;
     }[];
 }
 
@@ -46,6 +55,7 @@ const PredictionAdmin: React.FC = () => {
     const [isLoading, setIsLoading] = useState(true);
     const [isSaving, setIsSaving] = useState(false);
     const [saveMessage, setSaveMessage] = useState<string | null>(null);
+    const [currentJackpot, setCurrentJackpot] = useState(0);
 
     useEffect(() => {
         loadData();
@@ -67,6 +77,13 @@ const PredictionAdmin: React.FC = () => {
             const roundsResult: any = await getRounds({ limit: 30 });
             if (roundsResult.data.success) {
                 setRounds(roundsResult.data.rounds);
+            }
+
+            // Load Jackpot
+            const getJackpot = httpsCallable(functions, 'getJackpotStatus');
+            const jackpotRes: any = await getJackpot();
+            if (jackpotRes.data.success) {
+                setCurrentJackpot(jackpotRes.data.currentAmount);
             }
         } catch (error) {
             console.error('Failed to load prediction data:', error);
@@ -137,13 +154,22 @@ const PredictionAdmin: React.FC = () => {
                     </h2>
                     <p className="text-sm text-gray-500">배분율 설정 및 라운드 히스토리</p>
                 </div>
-                <button
-                    onClick={loadData}
-                    className="flex items-center gap-2 px-4 py-2 bg-gray-100 rounded-xl hover:bg-gray-200 text-sm"
-                >
-                    <RefreshCw size={16} />
-                    새로고침
-                </button>
+                <div className="flex items-center gap-4">
+                    <div className="bg-yellow-50 px-4 py-2 rounded-xl flex items-center gap-2 border border-yellow-200">
+                        <Trophy size={16} className="text-yellow-600" />
+                        <div>
+                            <p className="text-[10px] text-yellow-600 font-bold uppercase">Current Jackpot</p>
+                            <p className="text-lg font-black text-yellow-800">{currentJackpot.toLocaleString()} VIEW</p>
+                        </div>
+                    </div>
+                    <button
+                        onClick={loadData}
+                        className="flex items-center gap-2 px-4 py-2 bg-gray-100 rounded-xl hover:bg-gray-200 text-sm"
+                    >
+                        <RefreshCw size={16} />
+                        새로고침
+                    </button>
+                </div>
             </div>
 
             {/* Settings Card */}
@@ -282,9 +308,16 @@ const PredictionAdmin: React.FC = () => {
                                 rounds.map((round) => (
                                     <tr key={round.id} className="border-b border-gray-50 hover:bg-gray-50">
                                         <td className="py-3 px-4">
-                                            <div className="font-medium text-gray-800">{round.date}</div>
+                                            <div className="flex items-center gap-2">
+                                                <span className="px-1.5 py-0.5 bg-gray-100 rounded text-[10px] font-bold text-gray-500">
+                                                    #{round.roundId || '?'}
+                                                </span>
+                                                <div className="font-medium text-gray-800">{round.date}</div>
+                                            </div>
                                             {round.winningRange && (
-                                                <div className="text-xs text-gray-400">{round.winningRange}</div>
+                                                <div className="text-xs text-gray-400 mt-0.5">
+                                                    {round.winningRange} ({round.actualPrice?.toLocaleString()})
+                                                </div>
                                             )}
                                         </td>
                                         <td className="py-3 px-4 text-right">
@@ -307,10 +340,10 @@ const PredictionAdmin: React.FC = () => {
                                         </td>
                                         <td className="py-3 px-4 text-center">
                                             <span className={`px-2 py-1 text-xs font-bold rounded-full ${round.status === 'settled'
-                                                    ? 'bg-green-100 text-green-700'
-                                                    : round.status === 'closed'
-                                                        ? 'bg-yellow-100 text-yellow-700'
-                                                        : 'bg-blue-100 text-blue-700'
+                                                ? 'bg-green-100 text-green-700'
+                                                : round.status === 'closed'
+                                                    ? 'bg-yellow-100 text-yellow-700'
+                                                    : 'bg-blue-100 text-blue-700'
                                                 }`}>
                                                 {round.status === 'settled' ? '정산완료' : round.status === 'closed' ? '마감' : '진행중'}
                                             </span>
@@ -377,17 +410,37 @@ const PredictionAdmin: React.FC = () => {
                         </div>
 
                         <div className="flex-1 overflow-auto p-4">
-                            <h4 className="font-bold text-gray-800 mb-3">승자 목록</h4>
+                            {selectedRound.jackpotWinners && selectedRound.jackpotWinners.length > 0 && (
+                                <div className="mb-6 bg-yellow-50 p-4 rounded-xl border border-yellow-100">
+                                    <h4 className="font-bold text-yellow-800 mb-2 flex items-center gap-2">
+                                        <Trophy size={16} />
+                                        잭팟 당첨자 ({selectedRound.jackpotWinners.length}명)
+                                    </h4>
+                                    <div className="space-y-2">
+                                        {selectedRound.jackpotWinners.map((winner, idx) => (
+                                            <div key={idx} className="flex items-center justify-between p-2 bg-white rounded-lg shadow-sm">
+                                                <span className="font-bold text-gray-800">{winner.displayName}</span>
+                                                <span className="font-black text-yellow-600">+{winner.amount.toLocaleString()} VIEW</span>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+
+                            <h4 className="font-bold text-gray-800 mb-3">승자 목록 (Range)</h4>
                             {selectedRound.winners && selectedRound.winners.length > 0 ? (
                                 <div className="space-y-2">
                                     {selectedRound.winners.map((winner, idx) => (
                                         <div key={idx} className="flex items-center justify-between p-3 bg-gray-50 rounded-xl">
                                             <div className="flex items-center gap-3">
-                                                <div className="w-8 h-8 bg-yellow-100 text-yellow-600 rounded-full flex items-center justify-center font-bold text-sm">
+                                                <div className="w-8 h-8 bg-gray-100 text-gray-600 rounded-full flex items-center justify-center font-bold text-sm">
                                                     {idx + 1}
                                                 </div>
                                                 <div>
-                                                    <p className="font-medium text-gray-800">{winner.displayName}</p>
+                                                    <p className="font-medium text-gray-800 flex items-center gap-2">
+                                                        {winner.displayName}
+                                                        {winner.isJackpot && <span className="text-[10px] bg-yellow-100 text-yellow-700 px-1 rounded">JP</span>}
+                                                    </p>
                                                     <p className="text-xs text-gray-400">베팅: {winner.betAmount} VIEW</p>
                                                 </div>
                                             </div>

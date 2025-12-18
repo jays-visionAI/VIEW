@@ -729,6 +729,57 @@ const Profile: React.FC = () => {
           </div>
         </div>
 
+        {/* 3.1 Prediction History */}
+        <div className="px-5 mt-6">
+          <div className="bg-white rounded-3xl p-5 shadow-sm border border-gray-100">
+            <h3 className="text-sm font-bold text-gray-900 mb-4 flex items-center gap-2">
+              <Sparkles size={16} className="text-yellow-500" />
+              <span>BTC 예측 기록</span>
+            </h3>
+
+            {userState.predictions.length === 0 ? (
+              <div className="text-center py-6 text-gray-400 text-xs">
+                아직 참여한 기록이 없습니다.
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {userState.predictions.slice().reverse().map((pred: any) => (
+                  <div key={pred.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-2xl border border-gray-100">
+                    <div>
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className="text-xs font-bold text-gray-700">라운드 #{pred.roundId || '?'}</span>
+                        <span className="text-[10px] text-gray-400">{pred.predictedAt?.toDate ? pred.predictedAt.toDate().toLocaleDateString() : new Date(pred.predictedAt || Date.now()).toLocaleDateString()}</span>
+                      </div>
+                      <div className="text-xs text-gray-500">
+                        예측: <span className="font-medium text-gray-800">${pred.predictedPrice?.toLocaleString() || '-'}</span>
+                      </div>
+                      {pred.status !== 'Pending' && (
+                        <div className="text-[10px] text-gray-400 mt-0.5">
+                          실제: ${pred.actualPrice?.toLocaleString() || '-'}
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="text-right">
+                      {pred.status === 'Pending' ? (
+                        <span className="px-2 py-1 bg-gray-200 text-gray-500 text-[10px] rounded-full font-bold">진행중</span>
+                      ) : pred.status === 'Won' ? (
+                        <div className="flex flex-col items-end">
+                          <span className="px-2 py-1 bg-yellow-100 text-yellow-700 text-[10px] rounded-full font-bold mb-1">성공!</span>
+                          <span className="text-xs font-bold text-yellow-600">+{pred.reward?.toLocaleString()} VIEW</span>
+                          {pred.jackpotWon && <span className="text-[10px] font-black text-red-500 animate-pulse">JACKPOT!!</span>}
+                        </div>
+                      ) : (
+                        <span className="px-2 py-1 bg-gray-100 text-gray-400 text-[10px] rounded-full font-bold">실패</span>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+
         {/* 4. Settings & Menu */}
         <div className="px-5 mt-6 space-y-6">
 

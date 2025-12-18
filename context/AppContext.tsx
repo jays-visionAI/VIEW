@@ -586,7 +586,7 @@ export const AppProvider: React.FC<PropsWithChildren<{}>> = ({ children }) => {
     }
   };
 
-  const submitPrediction = async (coin: 'bitcoin' | 'ethereum', range: string, currentPrice: number, betAmount: number) => {
+  const submitPrediction = async (coin: 'bitcoin' | 'ethereum', range: string, currentPrice: number, betAmount: number, predictedPrice: number) => {
     if (!currentUser) {
       showToast("로그인이 필요합니다.", "error");
       return;
@@ -631,6 +631,7 @@ export const AppProvider: React.FC<PropsWithChildren<{}>> = ({ children }) => {
         range,
         strikePrice: currentPrice,
         betAmount,
+        predictedPrice,
         predictedAt: serverTimestamp(),
         status: 'Pending'
       });
