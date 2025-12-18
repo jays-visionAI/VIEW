@@ -2648,3 +2648,320 @@ export const calculateAttributeScores = onCall({
     }
 });
 
+// ============================================
+// scheduleAttributeScoreUpdate - Daily batch job for all users
+// Runs every day at 3 AM UTC (12 PM KST)
+// ============================================
+export const scheduleAttributeScoreUpdate = functions.pubsub
+    .schedule('0 3 * * *')  // Every day at 3:00 AM UTC
+    .timeZone('UTC')
+    .onRun(async (context) => {
+        const db = admin.firestore();
+        functions.logger.info('Starting daily attribute score update...');
+
+        try {
+            // Get users who have activities or survey responses
+            const usersSnap = await db.collection('users')
+                .where('surveyCompleted', '==', true)
+                .limit(1000)
+                .get();
+
+            let processed = 0;
+            let errors = 0;
+
+            for (const userDoc of usersSnap.docs) {
+                try {
+                    const uid = userDoc.id;
+                    await calculateAttributeScoresForUser(uid, db);
+                    processed++;
+                } catch (error: any) {
+                    functions.logger.warn(`Failed to process user ${userDoc.id}:`, error.message);
+                    errors++;
+                }
+            }
+
+            functions.logger.info('Daily attribute score update complete', { processed, errors });
+            return null;
+        } catch (error: any) {
+            functions.logger.error('scheduleAttributeScoreUpdate error:', error);
+            throw error;
+        }
+    });
+
+// ============================================
+// onSurveyCompleted - Trigger when user completes survey
+// ============================================
+export const onSurveyCompleted = functions.firestore
+    .document('users/{uid}/surveyResponses/{surveyId}')
+    .onCreate(async (snap, context) => {
+        const { uid, surveyId } = context.params;
+        const db = admin.firestore();
+
+        functions.logger.info('Survey completed, calculating attribute scores', { uid, surveyId });
+
+        try {
+            // Check if this is the last required survey (e.g., values survey)
+            const responsesSnap = await db.collection(`users/${uid}/surveyResponses`).get();
+            const completedSurveys = responsesSnap.docs.map(d => d.id);
+
+            // If user has completed key surveys, recalculate scores
+            const requiredSurveys = ['spending', 'values', 'power'];
+            const hasRequiredSurveys = requiredSurveys.every(s => completedSurveys.includes(s));
+
+            if (hasRequiredSurveys || completedSurveys.length >= 3) {
+                await calculateAttributeScoresForUser(uid, db);
+
+                // Mark survey as completed in user profile
+                await db.doc(`users/${uid}`).update({
+                    surveyCompleted: true,
+                    surveysCompletedAt: admin.firestore.FieldValue.serverTimestamp(),
+                });
+            }
+
+            return null;
+        } catch (error: any) {
+            functions.logger.error('onSurveyCompleted error:', error);
+            throw error;
+        }
+    });
+
+// ============================================
+// onActivityMilestone - Trigger when user reaches activity milestone
+// ============================================
+export const onActivityMilestone = functions.firestore
+    .document('users/{uid}/activities/{activityId}')
+    .onCreate(async (snap, context) => {
+        const { uid } = context.params;
+        const db = admin.firestore();
+
+        try {
+            // Check activity count
+            const userDoc = await db.doc(`users/${uid}`).get();
+            const userData = userDoc.data() || {};
+            const currentCount = (userData.activityCount || 0) + 1;
+
+            // Update activity count
+            await db.doc(`users/${uid}`).update({
+                activityCount: admin.firestore.FieldValue.increment(1),
+            });
+
+            // Recalculate at milestones: 10, 50, 100, 200, 500 activities
+            const milestones = [10, 50, 100, 200, 500];
+            if (milestones.includes(currentCount)) {
+                functions.logger.info('Activity milestone reached, recalculating scores', { uid, milestone: currentCount });
+                await calculateAttributeScoresForUser(uid, db);
+            }
+
+            return null;
+        } catch (error: any) {
+            functions.logger.error('onActivityMilestone error:', error);
+            // Don't throw - this is a background trigger
+            return null;
+        }
+    });
+
+// ============================================
+// Helper: Calculate attribute scores for a specific user
+// ============================================
+async function calculateAttributeScoresForUser(uid: string, db: admin.firestore.Firestore): Promise<void> {
+    // 1. Get user's activities
+    const activitiesSnap = await db.collection(`users/${uid}/activities`)
+        .orderBy('createdAt', 'desc')
+        .limit(500)
+        .get();
+    const activities = activitiesSnap.docs.map(doc => doc.data());
+
+    // 2. Get survey responses
+    const responsesSnap = await db.collection(`users/${uid}/surveyResponses`).get();
+    const responses: Record<string, any> = {};
+    responsesSnap.docs.forEach(doc => {
+        responses[doc.id] = doc.data();
+    });
+
+    // 3. Calculate attribute scores
+    const attributeScores: Record<string, number> = {};
+
+    // Price Positioning
+    const spending = responses['spending']?.responses || {};
+    const power = responses['power']?.responses || {};
+
+    if (power['p10']?.answer) {
+        const purchasingPower = (power['p10'].answer - 1) / 4;
+        if (purchasingPower >= 0.8) attributeScores['Price_Positioning.Luxury'] = 0.8;
+        else if (purchasingPower >= 0.6) attributeScores['Price_Positioning.Premium'] = 0.7;
+        else if (purchasingPower >= 0.4) attributeScores['Price_Positioning.Mid'] = 0.6;
+        else attributeScores['Price_Positioning.Value'] = 0.6;
+    }
+
+    // Sustainability
+    const values = responses['values']?.responses || {};
+    if (values['v1']?.answer) {
+        const ecoScore = (values['v1'].answer - 1) / 4;
+        if (ecoScore >= 0.7) {
+            attributeScores['Sustainability.Eco_Friendly'] = ecoScore;
+            attributeScores['Sustainability.Cruelty_Free'] = ecoScore * 0.8;
+        }
+    }
+
+    // ESG Activities
+    const esgActivities = activities.filter(a =>
+        (a.taxonomyTags || []).some((t: string) =>
+            t.includes('ESG') || t.includes('Sustainability') || t.includes('Environment')
+        )
+    );
+    if (esgActivities.length > 10) {
+        attributeScores['Sustainability.Eco_Friendly'] = Math.max(
+            attributeScores['Sustainability.Eco_Friendly'] || 0,
+            0.75
+        );
+    }
+
+    // Channel Preference
+    if (spending['s7']?.answer) {
+        const onlinePref = (spending['s7'].answer - 1) / 4;
+        if (onlinePref >= 0.7) {
+            attributeScores['Channel_Preference.Online_First'] = onlinePref;
+        } else if (onlinePref <= 0.3) {
+            attributeScores['Channel_Preference.Offline_First'] = 1 - onlinePref;
+        } else {
+            attributeScores['Channel_Preference.Omnichannel'] = 0.6;
+        }
+    }
+
+    // Purchase Decision Style
+    const impulseMap: Record<string, number> = {
+        '거의 안함': 0.1, '가끔': 0.3, '보통': 0.5, '자주': 0.7, '매우 자주': 0.9
+    };
+    if (spending['s3']?.answer && impulseMap[spending['s3'].answer]) {
+        const impulseScore = impulseMap[spending['s3'].answer];
+        if (impulseScore >= 0.7) {
+            attributeScores['Purchase_Decision_Style.Impulse'] = impulseScore;
+        } else if (impulseScore <= 0.3) {
+            attributeScores['Purchase_Decision_Style.Research_Heavy'] = 1 - impulseScore;
+        }
+    }
+
+    // Brand Loyalty
+    const brandCounts: Record<string, number> = {};
+    for (const activity of activities) {
+        if (activity.brand) {
+            brandCounts[activity.brand] = (brandCounts[activity.brand] || 0) + 1;
+        }
+    }
+    const brandValues = Object.values(brandCounts);
+    if (brandValues.length > 0) {
+        const maxBrandPurchase = Math.max(...brandValues);
+        const totalPurchases = brandValues.reduce((a, b) => a + b, 0);
+        const loyaltyScore = Math.min(1, (maxBrandPurchase / totalPurchases) * 1.5);
+        if (loyaltyScore >= 0.6) {
+            attributeScores['Purchase_Decision_Style.Brand_Loyal'] = loyaltyScore;
+        }
+    }
+
+    // Trend Seeker
+    if (spending['s6']?.answer) {
+        const earlyAdopterScore = (spending['s6'].answer - 1) / 4;
+        if (earlyAdopterScore >= 0.7) {
+            attributeScores['Purchase_Decision_Style.Trend_Seeker'] = earlyAdopterScore;
+        }
+    }
+
+    // Business Model preference from activity patterns
+    const subscriptionActivities = activities.filter(a =>
+        (a.type === 'subscription' || (a.tags || []).includes('subscription'))
+    );
+    if (subscriptionActivities.length >= 3) {
+        attributeScores['Business_Model.Subscription'] = Math.min(0.8, subscriptionActivities.length * 0.1);
+    }
+
+    // DTC preference
+    const dtcActivities = activities.filter(a =>
+        (a.channel === 'direct' || (a.tags || []).includes('DTC'))
+    );
+    if (dtcActivities.length >= 5) {
+        attributeScores['Business_Model.DTC'] = Math.min(0.75, dtcActivities.length * 0.08);
+    }
+
+    // 4. Save attribute scores
+    await db.doc(`users/${uid}/persona/current`).set({
+        attributeScores,
+        attributeScoresUpdatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        lastCalculationType: 'automatic',
+    }, { merge: true });
+
+    // 5. Update user profile summary
+    const topAttributes = Object.entries(attributeScores)
+        .sort(([, a], [, b]) => b - a)
+        .slice(0, 5)
+        .map(([key]) => key);
+
+    await db.doc(`users/${uid}`).update({
+        topAttributes,
+        attributeScoresCount: Object.keys(attributeScores).length,
+        attributeScoresUpdatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
+
+    functions.logger.info('Background attribute scores calculated', {
+        uid,
+        count: Object.keys(attributeScores).length,
+        topAttributes
+    });
+}
+
+// ============================================
+// batchRecalculateAttributeScores - Admin function for bulk recalculation
+// ============================================
+export const batchRecalculateAttributeScores = onCall({
+    cors: true,
+}, async (request) => {
+    if (!request.auth) {
+        throw new HttpsError('unauthenticated', '로그인이 필요합니다.');
+    }
+
+    const userEmail = request.auth.token.email;
+    if (!userEmail || !ADMIN_EMAILS.includes(userEmail)) {
+        throw new HttpsError('permission-denied', '관리자만 접근 가능합니다.');
+    }
+
+    const db = admin.firestore();
+    const { limit: batchLimit = 100, onlySurveyCompleted = true } = request.data || {};
+
+    try {
+        let query: admin.firestore.Query = db.collection('users');
+
+        if (onlySurveyCompleted) {
+            query = query.where('surveyCompleted', '==', true);
+        }
+
+        const usersSnap = await query.limit(batchLimit).get();
+
+        let processed = 0;
+        let errors = 0;
+        const results: { uid: string; success: boolean; error?: string }[] = [];
+
+        for (const userDoc of usersSnap.docs) {
+            try {
+                await calculateAttributeScoresForUser(userDoc.id, db);
+                processed++;
+                results.push({ uid: userDoc.id, success: true });
+            } catch (error: any) {
+                errors++;
+                results.push({ uid: userDoc.id, success: false, error: error.message });
+            }
+        }
+
+        functions.logger.info('Batch recalculation complete', { processed, errors });
+
+        return {
+            success: true,
+            message: `${processed}명의 사용자 점수가 재계산되었습니다.`,
+            processed,
+            errors,
+            results: results.slice(0, 20), // Only return first 20 for response size
+        };
+    } catch (error: any) {
+        functions.logger.error('batchRecalculateAttributeScores error:', error);
+        throw new HttpsError('internal', error.message);
+    }
+});
+
