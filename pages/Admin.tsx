@@ -7,13 +7,14 @@ import { functions, db, auth } from '../firebase';
 import { collection, getDocs, query, orderBy, limit, doc, getDoc } from 'firebase/firestore';
 import { GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged, User } from 'firebase/auth';
 import DocumentArchive from '../components/admin/DocumentArchive';
+import PredictionAdmin from '../components/admin/PredictionAdmin';
 
 // Admin emails whitelist (can also be stored in Firestore /settings/admin)
 const ADMIN_EMAILS = [
     'jays@visai.io',
 ];
 
-type TabType = 'users' | 'tokenomics' | 'staking' | 'referral' | 'taxonomy' | 'personas' | 'documents';
+type TabType = 'users' | 'tokenomics' | 'staking' | 'referral' | 'taxonomy' | 'personas' | 'documents' | 'prediction';
 
 interface UserData {
     uid: string;
@@ -484,6 +485,13 @@ export const AdminPage: React.FC = () => {
                     >
                         <FileText size={20} />
                         <span>Documents</span>
+                    </button>
+                    <button
+                        onClick={() => setActiveTab('prediction')}
+                        className={`w-full flex items-center space-x-3 px-4 py-3 rounded-xl transition-colors ${activeTab === 'prediction' ? 'bg-brand-50 text-brand-600 font-bold' : 'text-gray-500 hover:bg-gray-50'}`}
+                    >
+                        <TrendingUp size={20} />
+                        <span>BTC 예측</span>
                     </button>
                     <a
                         href="/"
@@ -1192,6 +1200,11 @@ export const AdminPage: React.FC = () => {
                         {/* Documents Tab */}
                         {activeTab === 'documents' && (
                             <DocumentArchive />
+                        )}
+
+                        {/* Prediction Tab */}
+                        {activeTab === 'prediction' && (
+                            <PredictionAdmin />
                         )}
                     </div>
                 </div>

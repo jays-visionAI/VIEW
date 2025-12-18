@@ -390,6 +390,7 @@ type CoinType = 'bitcoin' | 'ethereum';
 const Reward: React.FC = () => {
   const { userState, addTransaction, claimMission, submitPrediction } = useApp();
   const [selectedRange, setSelectedRange] = useState<string | null>(null);
+  const [betAmount, setBetAmount] = useState<number>(10);
   const [timeLeft, setTimeLeft] = useState("04:23:10");
 
   // State
@@ -508,8 +509,11 @@ const Reward: React.FC = () => {
 
   // Prediction Handler
   const handlePredict = async () => {
-    if (!selectedRange || hasPredictedToday) return;
-    await submitPrediction(activeCoin, selectedRange);
+    if (!selectedRange || hasPredictedToday || betAmount <= 0) return;
+    if (betAmount > userState.balance) {
+      return;
+    }
+    await submitPrediction(activeCoin, selectedRange, currentPrice, betAmount);
     setSelectedRange(null);
   };
 
@@ -825,19 +829,54 @@ const Reward: React.FC = () => {
               })}
             </div>
 
+            {/* Bet Amount Input */}
+            <div className="mb-4">
+              <label className="block text-xs font-medium text-gray-500 mb-2">베팅 금액 (VIEW)</label>
+              <div className="flex items-center gap-2">
+                <div className="flex-1 relative">
+                  <input
+                    type="number"
+                    value={betAmount}
+                    onChange={(e) => setBetAmount(Math.max(1, parseInt(e.target.value) || 0))}
+                    min="1"
+                    max={userState.balance}
+                    disabled={hasPredictedToday}
+                    className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-gray-900 outline-none text-lg font-bold disabled:bg-gray-50 disabled:text-gray-400"
+                    placeholder="베팅 금액"
+                  />
+                  <span className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 text-sm font-medium">VIEW</span>
+                </div>
+                <button
+                  onClick={() => setBetAmount(Math.floor(userState.balance * 0.5))}
+                  disabled={hasPredictedToday}
+                  className="px-3 py-3 bg-gray-100 text-gray-600 rounded-xl text-xs font-bold hover:bg-gray-200 disabled:opacity-50"
+                >
+                  50%
+                </button>
+                <button
+                  onClick={() => setBetAmount(Math.floor(userState.balance))}
+                  disabled={hasPredictedToday}
+                  className="px-3 py-3 bg-gray-100 text-gray-600 rounded-xl text-xs font-bold hover:bg-gray-200 disabled:opacity-50"
+                >
+                  MAX
+                </button>
+              </div>
+              <p className="text-xs text-gray-400 mt-1">보유: {userState.balance.toLocaleString()} VIEW</p>
+            </div>
+
             <button
-              disabled={!selectedRange || hasPredictedToday}
+              disabled={!selectedRange || hasPredictedToday || betAmount <= 0 || betAmount > userState.balance}
               onClick={handlePredict}
               className={`
                 w-full font-bold py-4 rounded-2xl transition-all shadow-lg active:scale-[0.98] flex items-center justify-center space-x-2
-                ${(!selectedRange && !hasPredictedToday) || hasPredictedToday
+                ${(!selectedRange && !hasPredictedToday) || hasPredictedToday || betAmount <= 0 || betAmount > userState.balance
                   ? 'bg-gray-100 text-gray-400 cursor-not-allowed shadow-none'
                   : 'bg-gray-900 text-white hover:bg-black shadow-gray-900/20'
                 }
               `}
             >
               <span>{hasPredictedToday ? '이미 참여 완료' : `${currentConfig.symbol} 예측 제출하기`}</span>
-              {!hasPredictedToday && <span className={`px-2 py-0.5 rounded text-[10px] font-extrabold ${!selectedRange ? 'bg-gray-200 text-gray-400' : 'bg-white/20 text-white'}`}>-2 VIEW</span>}
+              {!hasPredictedToday && <span className={`px-2 py-0.5 rounded text-[10px] font-extrabold ${!selectedRange || betAmount <= 0 ? 'bg-gray-200 text-gray-400' : 'bg-white/20 text-white'}`}>-{betAmount.toLocaleString()} VIEW</span>}
             </button>
           </div>
         </div>

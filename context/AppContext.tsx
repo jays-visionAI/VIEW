@@ -34,7 +34,7 @@ interface AppContextType {
   isLoggedIn: boolean;
   loginAnonymously: () => Promise<void>;
   loginWithGoogle: () => Promise<void>;
-  submitPrediction: (coin: 'bitcoin' | 'ethereum', range: string, currentPrice: number) => void;
+  submitPrediction: (coin: 'bitcoin' | 'ethereum', range: string, currentPrice: number, betAmount: number) => void;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -586,13 +586,18 @@ export const AppProvider: React.FC<PropsWithChildren<{}>> = ({ children }) => {
     }
   };
 
-  const submitPrediction = async (coin: 'bitcoin' | 'ethereum', range: string, currentPrice: number) => {
+  const submitPrediction = async (coin: 'bitcoin' | 'ethereum', range: string, currentPrice: number, betAmount: number) => {
     if (!currentUser) {
       showToast("로그인이 필요합니다.", "error");
       return;
     }
-    const COST = 2;
-    if (userState.balance < COST) {
+
+    if (betAmount <= 0) {
+      showToast("베팅 금액을 입력해주세요.", "error");
+      return;
+    }
+
+    if (userState.balance < betAmount) {
       showToast("VIEW 잔액이 부족합니다!", "error");
       return;
     }
@@ -625,6 +630,7 @@ export const AppProvider: React.FC<PropsWithChildren<{}>> = ({ children }) => {
         coin,
         range,
         strikePrice: currentPrice,
+        betAmount,
         predictedAt: serverTimestamp(),
         status: 'Pending'
       });
@@ -632,15 +638,15 @@ export const AppProvider: React.FC<PropsWithChildren<{}>> = ({ children }) => {
       // 2. Add Transaction
       await addDoc(txRef, {
         type: 'BTC Game',
-        amount: -COST,
+        amount: -betAmount,
         date: '방금 전',
-        description: `${coin === 'bitcoin' ? 'BTC' : 'ETH'} 예측 참여`,
+        description: `${coin === 'bitcoin' ? 'BTC' : 'ETH'} 예측 참여 (${betAmount} VIEW)`,
         createdAt: serverTimestamp()
       });
 
       // 3. Deduct Balance
       await updateDoc(userRef, {
-        balance: increment(-COST),
+        balance: increment(-betAmount),
       });
 
       showToast("예측이 제출되었습니다! 행운을 빕니다.");
