@@ -1,0 +1,166 @@
+# ============================================================
+# VIEW Advertising Attribute Taxonomy v1.0
+# Cross-industry product/brand characteristics
+# ------------------------------------------------------------
+# "How is it being sold / What characteristics does it have"
+# Used in combination with Industry Taxonomy for targeting
+# ============================================================
+
+version: 1.0
+last_updated: 2025-12-19
+maintainer: VIEW Protocol – CODEX Advertising Intelligence
+type: attribute_taxonomy
+
+attributes:
+
+  Price_Positioning:
+    description: "How the offer is positioned by price/brand prestige"
+    values:
+      - Mass
+      - Value
+      - Mid
+      - Premium
+      - Luxury
+      - Ultra_Luxury
+
+  Sustainability:
+    description: "Sustainability claims and eco/ethical properties"
+    values:
+      - Eco_Friendly
+      - Upcycled
+      - Fair_Trade
+      - Vegan
+      - Cruelty_Free
+      - Plastic_Free
+      - Carbon_Neutral
+      - Clean_Ingredients
+      - Organic
+      - Zero_Waste
+
+  Business_Model:
+    description: "How the offer is sold and delivered"
+    values:
+      - Direct_To_Consumer
+      - Marketplace
+      - Subscription
+      - Rental
+      - Resale
+      - Secondhand
+      - Pre_Owned
+      - On_Demand
+      - Franchise
+      - White_Label
+
+  Brand_Type:
+    description: "Brand archetype and origin"
+    values:
+      - Legacy_Brand
+      - Designer_Brand
+      - Indie_Brand
+      - Creator_Brand
+      - Local_Brand
+      - Global_Brand
+      - Private_Label
+      - Startup_Brand
+
+  Product_Lifecycle:
+    description: "Relationship to novelty and release cycle"
+    values:
+      - New_Launch
+      - Limited_Edition
+      - Seasonal
+      - Evergreen
+      - Preorder
+      - Flash_Sale
+      - Clearance
+
+  Audience_Lifecycle:
+    description: "Primary lifecycle stage targeted"
+    values:
+      - Student
+      - Early_Career
+      - Young_Professional
+      - Family
+      - Mid_Career
+      - Empty_Nester
+      - Senior
+      - Retiree
+
+  Channel_Preference:
+    description: "Preferred acquisition and consumption channel"
+    values:
+      - Online_First
+      - Offline_First
+      - Omnichannel
+      - Mobile_First
+      - Social_Commerce
+      - Live_Commerce
+
+  Purchase_Decision_Style:
+    description: "How buyers typically decide"
+    values:
+      - Impulse
+      - Deal_Seeker
+      - Research_Heavy
+      - Brand_Loyal
+      - Trend_Seeker
+      - Quality_Focused
+      - Value_Conscious
+      - Experience_Seeker
+
+  Offer_Format:
+    description: "What format is being marketed"
+    values:
+      - Physical_Product
+      - Digital_Product
+      - Service
+      - Experience
+      - Event
+      - Membership
+      - Bundle
+      - Gift
+
+  Target_Gender:
+    description: "Primary gender target"
+    values:
+      - Male
+      - Female
+      - Unisex
+      - Non_Binary
+
+  Geographic_Scope:
+    description: "Geographic availability and focus"
+    values:
+      - Local
+      - Regional
+      - National
+      - International
+      - Global
+
+  Content_Rating:
+    description: "Content appropriateness and restrictions"
+    values:
+      - All_Ages
+      - Teen_Plus
+      - Adult
+      - Age_Restricted
+      - Requires_Review
+
+  Trend_Alignment:
+    description: "Alignment with current market trends"
+    values:
+      - Trending
+      - Classic
+      - Retro
+      - Avant_Garde
+      - Mainstream
+      - Niche
+
+  Technology_Level:
+    description: "Technology sophistication of the offer"
+    values:
+      - Traditional
+      - Tech_Enhanced
+      - Smart_Connected
+      - AI_Powered
+      - Fully_Digital

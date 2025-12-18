@@ -1,57 +1,141 @@
 import React, { useState, useEffect } from 'react';
 import {
     Building2, Users, Target, ChevronRight, ChevronDown, Check,
-    Search, Sliders, BarChart3, Globe, MapPin, Package
+    Sliders, BarChart3, Globe, MapPin, Package, Tags, Filter
 } from 'lucide-react';
 import {
     RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis,
     Radar, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, Cell
 } from 'recharts';
-import { httpsCallable } from 'firebase/functions';
-import { functions } from '../../firebase';
 import { useApp } from '../../context/AppContext';
 
-// Taxonomy Tree Structure (loaded from taxonomy_v1.yaml concept)
-const TAXONOMY_TREE: Record<string, Record<string, string[]>> = {
+// ============================================
+// INDUSTRY TAXONOMY (What is being sold)
+// ============================================
+const INDUSTRY_TAXONOMY: Record<string, Record<string, string[]>> = {
     Fashion: {
-        Apparel: ['Menswear', 'Womenswear', 'Sportswear', 'Outdoorwear', 'Kidswear'],
-        Footwear: ['Sneakers', 'Sandals', 'Boots', 'High Heels'],
-        Accessories: ['Bags', 'Watches', 'Jewelry', 'Belts', 'Glasses'],
+        Apparel: ['Menswear', 'Womenswear', 'Sportswear', 'Outdoorwear', 'Kidswear', 'Maternity', 'Plus_Size'],
+        Footwear: ['Sneakers', 'Sandals', 'Boots', 'High_Heels', 'Loafers', 'Athletic_Shoes'],
+        Accessories: ['Bags', 'Watches', 'Jewelry', 'Belts', 'Glasses', 'Hats', 'Scarves', 'Wallets'],
     },
     Beauty: {
-        Skincare: ['Anti-aging', 'Whitening', 'Moisturizing', 'Sunscreen', 'Acne-care'],
-        Makeup: ['Lipstick', 'Foundation', 'Mascara', 'Eyeliner'],
-        Haircare: ['Shampoo', 'Conditioner', 'Treatment', 'Styling'],
+        Skincare: ['Anti_Aging', 'Whitening', 'Moisturizing', 'Sunscreen', 'Serum', 'Toner', 'Essence'],
+        Makeup: ['Lipstick', 'Foundation', 'Mascara', 'Eyeliner', 'Blusher', 'Concealer', 'Primer'],
+        Haircare: ['Shampoo', 'Conditioner', 'Treatment', 'Styling', 'Hair_Color', 'Scalp_Care'],
+        Fragrance: ['Perfume', 'Body_Mist', 'Home_Fragrance', 'Niche_Perfume'],
+        Tools_Devices: ['Makeup_Brushes', 'Beauty_Devices', 'Hair_Dryers', 'Straighteners'],
     },
     Technology: {
-        Consumer_Electronics: ['Smartphone', 'Laptop', 'Tablet', 'Smartwatch', 'Headphones'],
-        Software: ['Productivity', 'Security', 'Cloud Service', 'AI Application'],
-        Gaming: ['Console', 'PC Game', 'Mobile Game', 'VR/AR'],
+        Consumer_Electronics: ['Smartphone', 'Laptop', 'Tablet', 'Smartwatch', 'Headphones', 'Camera', 'Drone'],
+        Software: ['Productivity', 'Security', 'Cloud_Service', 'AI_Application', 'CRM', 'Design_Tools'],
+        Gaming: ['Console', 'PC_Game', 'Mobile_Game', 'VR_AR', 'Esports', 'Gaming_Accessories'],
+        Smart_Home: ['Smart_Speaker', 'Smart_Lighting', 'Smart_Security', 'Smart_Thermostat', 'Robot_Vacuum'],
+        Wearables: ['Fitness_Tracker', 'Smart_Ring', 'AR_Glasses', 'Health_Monitor'],
     },
     Food_Beverage: {
-        Restaurant: ['Fine Dining', 'Casual Dining', 'Fast Food', 'Franchise Chain'],
-        Beverage: ['Coffee', 'Tea', 'Juice', 'Alcohol', 'Energy Drink'],
-        Grocery: ['Organic Food', 'Snack', 'Frozen Food', 'Dairy Product'],
+        Restaurant: ['Fine_Dining', 'Casual_Dining', 'Fast_Food', 'Cafe', 'Bakery', 'Food_Truck'],
+        Beverage: ['Coffee', 'Tea', 'Juice', 'Alcohol', 'Energy_Drink', 'Craft_Beer', 'Wine'],
+        Grocery: ['Organic_Food', 'Snack', 'Frozen_Food', 'Dairy_Product', 'Fresh_Produce', 'Meat_Seafood'],
+        Delivery_Service: ['Meal_Kit', 'Food_Delivery_Platform', 'Grocery_Delivery', 'Subscription_Box'],
     },
     Travel: {
-        Airline: ['Budget', 'Full Service', 'Charter'],
-        Hotel: ['Luxury', 'Resort', 'Boutique', 'Business'],
-        Tour: ['Honeymoon', 'Cultural', 'Adventure', 'Wellness'],
+        Airline: ['Budget', 'Full_Service', 'Charter', 'Business_Class', 'First_Class'],
+        Hotel: ['Resort', 'Boutique', 'Business', 'Capsule', 'Hostel', 'Vacation_Rental'],
+        Tour: ['Honeymoon', 'Cultural', 'Adventure', 'Wellness', 'Food_Tour', 'Photography'],
+        Transportation: ['Train', 'Bus', 'Car_Rental', 'Cruise', 'Bike_Rental'],
     },
     Finance: {
-        Banking: ['Savings Account', 'Loan', 'Credit Card', 'Payment App'],
-        Investment: ['Stocks', 'ETF', 'Crypto', 'Real Estate Fund'],
-        Insurance: ['Life', 'Health', 'Car', 'Travel'],
+        Banking: ['Savings_Account', 'Loan', 'Credit_Card', 'Payment_App', 'Mortgage'],
+        Investment: ['Stocks', 'ETF', 'Crypto', 'Real_Estate_Fund', 'Bonds', 'Mutual_Fund'],
+        Insurance: ['Life', 'Health', 'Car', 'Travel', 'Property', 'Pet'],
+        Fintech: ['Digital_Wallet', 'Robo_Advisor', 'DeFi', 'P2P_Lending', 'BNPL', 'Neobank'],
     },
     Health_Wellness: {
-        Fitness: ['Gym', 'Yoga', 'Pilates', 'Home Training'],
-        Nutrition: ['Supplements', 'Vitamins', 'Protein', 'Health Drinks'],
-        Medical_Service: ['Clinic', 'Dental', 'Dermatology', 'Aesthetic'],
+        Fitness: ['Gym', 'Yoga', 'Pilates', 'Home_Training', 'CrossFit', 'Swimming', 'Martial_Arts'],
+        Nutrition: ['Supplements', 'Vitamins', 'Protein', 'Health_Drinks', 'Probiotics'],
+        Medical_Service: ['Clinic', 'Dental', 'Dermatology', 'Aesthetic', 'Telemedicine'],
+        Mental_Health: ['Meditation', 'Counseling', 'Therapy', 'Stress_Management', 'Mindfulness'],
+    },
+    Education: {
+        Online_Course: ['Language', 'Programming', 'Business', 'Design', 'Music', 'Data_Science'],
+        Institution: ['University', 'College', 'Vocational_School', 'Tutoring_Center'],
+        Certification: ['MBA', 'TOEFL', 'IELTS', 'Blockchain_Certification', 'AI_Engineer', 'AWS'],
+        EdTech: ['LMS', 'Online_Tutoring', 'Study_App', 'Assessment_Tool'],
     },
     Entertainment: {
-        Streaming: ['OTT', 'Music', 'Podcast', 'Webtoon'],
-        Event: ['Concert', 'Exhibition', 'Festival'],
-        Sports: ['Football', 'Golf', 'eSports'],
+        Streaming: ['OTT', 'Music', 'Podcast', 'Webtoon', 'Live_Streaming'],
+        Event: ['Concert', 'Exhibition', 'Festival', 'Theater', 'Fan_Meeting'],
+        Media: ['TV_Channel', 'Influencer', 'Magazine', 'YouTube', 'TikTok'],
+        Sports: ['Football', 'Golf', 'eSports', 'Basketball', 'Tennis', 'Running'],
+    },
+    Home_Living: {
+        Furniture: ['Sofa', 'Bed', 'Table', 'Lighting', 'Chair', 'Storage'],
+        Interior: ['Wallpaper', 'Flooring', 'Home_Decor', 'Curtains', 'Rugs', 'Plants'],
+        Appliances: ['Refrigerator', 'Washing_Machine', 'Air_Conditioner', 'Vacuum', 'Air_Purifier'],
+        Real_Estate: ['Apartment', 'Villa', 'Commercial', 'Rental_Service', 'Co_Living'],
+    },
+    Auto_Mobility: {
+        Vehicle: ['Electric_Vehicle', 'SUV', 'Sedan', 'Motorcycle', 'Truck', 'Hybrid'],
+        Service: ['Ride_Sharing', 'Car_Sharing', 'Maintenance', 'Charging_Station', 'Car_Wash'],
+        Accessories: ['Tire', 'Battery', 'Navigation', 'Dashcam', 'Car_Audio', 'Safety_Equipment'],
+    },
+    Media_Publishing: {
+        Books: ['Fiction', 'Nonfiction', 'Self_Help', 'Business', 'Finance', 'Children', 'Lifestyle'],
+        Digital_Books: ['eBook', 'Interactive_Book', 'Serialized_Fiction'],
+        Audio_Content: ['Audiobook', 'Audio_Series', 'Podcast_Original'],
+        Periodicals: ['Newsletter', 'Magazine_Subscription', 'Paid_Community'],
+        Author_Brand: ['Book_Launch', 'Speaking', 'Fan_Membership', 'Merchandise'],
+    },
+    ESG_Impact: {
+        Environment: ['Carbon_Offset', 'Recycling', 'Clean_Energy', 'Water_Conservation'],
+        Social: ['Donation_Platform', 'Volunteer_Organization', 'Community_Development'],
+        Green_Tech: ['Solar_Energy', 'Wind_Energy', 'EV_Infrastructure', 'Smart_Grid'],
+    },
+};
+
+// ============================================
+// ATTRIBUTE TAXONOMY (How it's being sold)
+// ============================================
+const ATTRIBUTE_TAXONOMY: Record<string, { description: string; values: string[] }> = {
+    Price_Positioning: {
+        description: '가격 포지셔닝',
+        values: ['Mass', 'Value', 'Mid', 'Premium', 'Luxury', 'Ultra_Luxury'],
+    },
+    Sustainability: {
+        description: '지속가능성',
+        values: ['Eco_Friendly', 'Upcycled', 'Fair_Trade', 'Vegan', 'Cruelty_Free', 'Organic', 'Zero_Waste'],
+    },
+    Business_Model: {
+        description: '비즈니스 모델',
+        values: ['Direct_To_Consumer', 'Marketplace', 'Subscription', 'Rental', 'Resale', 'Secondhand', 'On_Demand'],
+    },
+    Brand_Type: {
+        description: '브랜드 유형',
+        values: ['Legacy_Brand', 'Designer_Brand', 'Indie_Brand', 'Creator_Brand', 'Local_Brand', 'Global_Brand'],
+    },
+    Product_Lifecycle: {
+        description: '제품 수명주기',
+        values: ['New_Launch', 'Limited_Edition', 'Seasonal', 'Evergreen', 'Preorder', 'Flash_Sale'],
+    },
+    Audience_Lifecycle: {
+        description: '타겟 라이프스타일',
+        values: ['Student', 'Early_Career', 'Young_Professional', 'Family', 'Mid_Career', 'Senior'],
+    },
+    Channel_Preference: {
+        description: '채널 선호',
+        values: ['Online_First', 'Offline_First', 'Omnichannel', 'Mobile_First', 'Social_Commerce'],
+    },
+    Purchase_Decision_Style: {
+        description: '구매 결정 스타일',
+        values: ['Impulse', 'Deal_Seeker', 'Research_Heavy', 'Brand_Loyal', 'Trend_Seeker', 'Quality_Focused'],
+    },
+    Offer_Format: {
+        description: '제공 형식',
+        values: ['Physical_Product', 'Digital_Product', 'Service', 'Experience', 'Event', 'Membership'],
+    },
+    Target_Gender: {
+        description: '타겟 성별',
+        values: ['Male', 'Female', 'Unisex'],
     },
 };
 
@@ -70,13 +154,13 @@ const TRAITS_CONFIG = [
 ];
 
 interface TargetingData {
-    // Step 1
-    selectedTaxonomy: string[];
+    // Step 1: Industry (What)
+    selectedIndustry: string[];
     productName: string;
-    priceRange: [number, number];
     salesChannel: string;
     regions: string[];
-    // Step 2
+    // Step 2: Attributes (How) + Traits
+    selectedAttributes: Record<string, string[]>;
     targetTraits: Record<string, [number, number]>;
     // Step 3 (results)
     estimatedReach: number;
@@ -89,13 +173,14 @@ const AudienceTargeting: React.FC = () => {
     const [isLoading, setIsLoading] = useState(false);
     const [expandedIndustries, setExpandedIndustries] = useState<string[]>([]);
     const [expandedCategories, setExpandedCategories] = useState<string[]>([]);
+    const [expandedAttributes, setExpandedAttributes] = useState<string[]>([]);
 
     const [formData, setFormData] = useState<TargetingData>({
-        selectedTaxonomy: [],
+        selectedIndustry: [],
         productName: '',
-        priceRange: [0, 500000],
         salesChannel: 'omni',
         regions: [],
+        selectedAttributes: {},
         targetTraits: {},
         estimatedReach: 0,
         matchedPersonas: [],
@@ -111,8 +196,8 @@ const AudienceTargeting: React.FC = () => {
     }, []);
 
     const steps = [
-        { id: 1, label: '비즈니스 정보', icon: Building2 },
-        { id: 2, label: '타겟 페르소나', icon: Users },
+        { id: 1, label: '산업 분류 (What)', icon: Building2 },
+        { id: 2, label: '속성 & 페르소나 (How)', icon: Tags },
         { id: 3, label: '매칭 결과', icon: Target },
     ];
 
@@ -128,13 +213,35 @@ const AudienceTargeting: React.FC = () => {
         );
     };
 
-    const toggleTaxonomyItem = (path: string) => {
+    const toggleIndustryItem = (path: string) => {
         setFormData(prev => ({
             ...prev,
-            selectedTaxonomy: prev.selectedTaxonomy.includes(path)
-                ? prev.selectedTaxonomy.filter(p => p !== path)
-                : [...prev.selectedTaxonomy, path]
+            selectedIndustry: prev.selectedIndustry.includes(path)
+                ? prev.selectedIndustry.filter(p => p !== path)
+                : [...prev.selectedIndustry, path]
         }));
+    };
+
+    const toggleAttribute = (attrType: string) => {
+        setExpandedAttributes(prev =>
+            prev.includes(attrType) ? prev.filter(a => a !== attrType) : [...prev, attrType]
+        );
+    };
+
+    const toggleAttributeValue = (attrType: string, value: string) => {
+        setFormData(prev => {
+            const current = prev.selectedAttributes[attrType] || [];
+            const newValues = current.includes(value)
+                ? current.filter(v => v !== value)
+                : [...current, value];
+            return {
+                ...prev,
+                selectedAttributes: {
+                    ...prev.selectedAttributes,
+                    [attrType]: newValues.length > 0 ? newValues : undefined
+                }
+            };
+        });
     };
 
     const handleTraitChange = (key: string, index: number, value: number) => {
@@ -142,7 +249,6 @@ const AudienceTargeting: React.FC = () => {
             const current = prev.targetTraits[key] || [0.3, 0.7];
             const newRange: [number, number] = [...current] as [number, number];
             newRange[index] = value;
-            // Ensure min <= max
             if (index === 0 && value > newRange[1]) newRange[1] = value;
             if (index === 1 && value < newRange[0]) newRange[0] = value;
             return { ...prev, targetTraits: { ...prev.targetTraits, [key]: newRange } };
@@ -152,26 +258,29 @@ const AudienceTargeting: React.FC = () => {
     const calculateAudience = async () => {
         setIsLoading(true);
         try {
-            // Mock calculation for now
             await new Promise(r => setTimeout(r, 1500));
 
-            const baseReach = 5000 + (formData.selectedTaxonomy.length * 1500);
+            const industryFactor = formData.selectedIndustry.length * 1500;
+            const attributeCount = Object.values(formData.selectedAttributes).flat().filter(Boolean).length;
+            const attributeFactor = attributeCount > 0 ? Math.max(0.5, 1 - attributeCount * 0.1) : 1;
+
             const traitsArray = Object.values(formData.targetTraits) as [number, number][];
             const traitFactor = traitsArray.reduce((acc, [min, max]) => {
                 return acc * (0.5 + (max - min) * 0.5);
             }, 1);
 
-            const reach = Math.round(baseReach * traitFactor);
+            const baseReach = 5000 + industryFactor;
+            const reach = Math.round(baseReach * attributeFactor * traitFactor);
 
             setFormData(prev => ({
                 ...prev,
                 estimatedReach: reach,
                 matchedPersonas: [
-                    { name: '프리미엄 컨슈머', count: Math.round(reach * 0.35), color: '#8b5cf6' },
-                    { name: '테크 얼리어답터', count: Math.round(reach * 0.25), color: '#3b82f6' },
-                    { name: '가성비 헌터', count: Math.round(reach * 0.2), color: '#22c55e' },
-                    { name: '경험 추구자', count: Math.round(reach * 0.12), color: '#f59e0b' },
-                    { name: 'ESG 가치 소비자', count: Math.round(reach * 0.08), color: '#10b981' },
+                    { name: '프리미엄 컨슈머', count: Math.round(reach * 0.32), color: '#8b5cf6' },
+                    { name: '테크 얼리어답터', count: Math.round(reach * 0.24), color: '#3b82f6' },
+                    { name: '가성비 헌터', count: Math.round(reach * 0.18), color: '#22c55e' },
+                    { name: '경험 추구자', count: Math.round(reach * 0.14), color: '#f59e0b' },
+                    { name: 'ESG 가치 소비자', count: Math.round(reach * 0.12), color: '#10b981' },
                 ]
             }));
 
@@ -192,12 +301,14 @@ const AudienceTargeting: React.FC = () => {
         };
     });
 
+    const selectedAttributesCount = Object.values(formData.selectedAttributes).flat().filter(Boolean).length;
+
     return (
-        <div className="max-w-5xl mx-auto pb-20">
+        <div className="max-w-6xl mx-auto pb-20">
             {/* Header */}
             <div className="mb-8">
                 <h2 className="text-2xl font-bold text-gray-900">타겟 오디언스 찾기</h2>
-                <p className="text-gray-500">비즈니스에 맞는 최적의 고객층을 찾아보세요.</p>
+                <p className="text-gray-500">산업 분류(What) + 속성(How)으로 정밀 타겟팅</p>
             </div>
 
             {/* Progress Stepper */}
@@ -214,25 +325,26 @@ const AudienceTargeting: React.FC = () => {
             </div>
 
             {/* Content */}
-            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden min-h-[600px] flex flex-col">
+            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden min-h-[650px] flex flex-col">
                 <div className="p-8 flex-1 overflow-auto">
-                    {/* Step 1: Business Info */}
+                    {/* Step 1: Industry (What is being sold) */}
                     {step === 1 && (
                         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                            {/* Taxonomy Tree */}
+                            {/* Industry Tree */}
                             <div>
                                 <h3 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
                                     <Building2 size={20} className="text-brand-500" />
-                                    산업/카테고리 선택
+                                    산업 분류 선택 (What)
                                 </h3>
-                                <div className="border border-gray-200 rounded-xl max-h-[400px] overflow-auto">
-                                    {Object.entries(TAXONOMY_TREE).map(([industry, categories]) => (
+                                <p className="text-sm text-gray-500 mb-4">무엇을 판매/제공하는지 선택하세요</p>
+                                <div className="border border-gray-200 rounded-xl max-h-[450px] overflow-auto">
+                                    {Object.entries(INDUSTRY_TAXONOMY).map(([industry, categories]) => (
                                         <div key={industry} className="border-b border-gray-100 last:border-b-0">
                                             <button
                                                 onClick={() => toggleIndustry(industry)}
                                                 className="w-full px-4 py-3 flex items-center justify-between hover:bg-gray-50 transition-colors"
                                             >
-                                                <span className="font-bold text-gray-800">{industry.replace('_', ' ')}</span>
+                                                <span className="font-bold text-gray-800">{industry.replace(/_/g, ' ')}</span>
                                                 <ChevronDown size={18} className={`text-gray-400 transition-transform ${expandedIndustries.includes(industry) ? 'rotate-180' : ''}`} />
                                             </button>
 
@@ -244,7 +356,7 @@ const AudienceTargeting: React.FC = () => {
                                                                 onClick={() => toggleCategory(`${industry}.${category}`)}
                                                                 className="w-full px-3 py-2 flex items-center justify-between hover:bg-gray-100 rounded-lg transition-colors"
                                                             >
-                                                                <span className="text-sm font-medium text-gray-700">{category.replace('_', ' ')}</span>
+                                                                <span className="text-sm font-medium text-gray-700">{category.replace(/_/g, ' ')}</span>
                                                                 <ChevronRight size={16} className={`text-gray-400 transition-transform ${expandedCategories.includes(`${industry}.${category}`) ? 'rotate-90' : ''}`} />
                                                             </button>
 
@@ -252,17 +364,17 @@ const AudienceTargeting: React.FC = () => {
                                                                 <div className="ml-4 py-1 space-y-1">
                                                                     {subcategories.map(sub => {
                                                                         const path = `${industry}.${category}.${sub}`;
-                                                                        const isSelected = formData.selectedTaxonomy.includes(path);
+                                                                        const isSelected = formData.selectedIndustry.includes(path);
                                                                         return (
                                                                             <button
                                                                                 key={sub}
-                                                                                onClick={() => toggleTaxonomyItem(path)}
+                                                                                onClick={() => toggleIndustryItem(path)}
                                                                                 className={`w-full px-3 py-1.5 text-left text-sm rounded-lg flex items-center gap-2 transition-colors ${isSelected ? 'bg-brand-100 text-brand-700' : 'hover:bg-gray-100 text-gray-600'}`}
                                                                             >
                                                                                 <div className={`w-4 h-4 rounded border flex items-center justify-center ${isSelected ? 'bg-brand-600 border-brand-600' : 'border-gray-300'}`}>
                                                                                     {isSelected && <Check size={12} className="text-white" />}
                                                                                 </div>
-                                                                                {sub}
+                                                                                {sub.replace(/_/g, ' ')}
                                                                             </button>
                                                                         );
                                                                     })}
@@ -276,13 +388,13 @@ const AudienceTargeting: React.FC = () => {
                                     ))}
                                 </div>
 
-                                {/* Selected Tags */}
-                                {formData.selectedTaxonomy.length > 0 && (
+                                {/* Selected Industry Tags */}
+                                {formData.selectedIndustry.length > 0 && (
                                     <div className="mt-4 flex flex-wrap gap-2">
-                                        {formData.selectedTaxonomy.map(path => (
+                                        {formData.selectedIndustry.map(path => (
                                             <span key={path} className="px-3 py-1 bg-brand-100 text-brand-700 rounded-full text-xs font-medium flex items-center gap-1">
-                                                {path.split('.').pop()}
-                                                <button onClick={() => toggleTaxonomyItem(path)} className="hover:text-brand-900">×</button>
+                                                {path.split('.').pop()?.replace(/_/g, ' ')}
+                                                <button onClick={() => toggleIndustryItem(path)} className="hover:text-brand-900">×</button>
                                             </span>
                                         ))}
                                     </div>
@@ -358,33 +470,96 @@ const AudienceTargeting: React.FC = () => {
                                         })}
                                     </div>
                                 </div>
+
+                                {/* Summary */}
+                                <div className="mt-6 p-4 bg-gray-50 rounded-xl">
+                                    <h4 className="text-sm font-bold text-gray-700 mb-2">선택 요약</h4>
+                                    <div className="text-sm text-gray-600 space-y-1">
+                                        <p>• 산업 분류: <span className="font-medium">{formData.selectedIndustry.length}개 선택</span></p>
+                                        <p>• 지역: <span className="font-medium">{formData.regions.length > 0 ? formData.regions.join(', ') : '전체'}</span></p>
+                                    </div>
+                                </div>
                             </div>
                         </div>
                     )}
 
-                    {/* Step 2: Target Persona */}
+                    {/* Step 2: Attributes + Traits (How it's being sold) */}
                     {step === 2 && (
-                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                            {/* Attribute Selection */}
+                            <div className="lg:col-span-1">
+                                <h3 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
+                                    <Tags size={20} className="text-indigo-500" />
+                                    제품 속성 (How)
+                                </h3>
+                                <p className="text-sm text-gray-500 mb-4">어떤 특성으로 판매하는지 선택</p>
+                                <div className="border border-gray-200 rounded-xl max-h-[400px] overflow-auto">
+                                    {Object.entries(ATTRIBUTE_TAXONOMY).map(([attrType, attrData]) => (
+                                        <div key={attrType} className="border-b border-gray-100 last:border-b-0">
+                                            <button
+                                                onClick={() => toggleAttribute(attrType)}
+                                                className="w-full px-4 py-3 flex items-center justify-between hover:bg-gray-50 transition-colors"
+                                            >
+                                                <div>
+                                                    <span className="font-medium text-gray-800">{attrData.description}</span>
+                                                    {(formData.selectedAttributes[attrType]?.length || 0) > 0 && (
+                                                        <span className="ml-2 px-2 py-0.5 bg-indigo-100 text-indigo-700 rounded-full text-xs">
+                                                            {formData.selectedAttributes[attrType]?.length}
+                                                        </span>
+                                                    )}
+                                                </div>
+                                                <ChevronDown size={16} className={`text-gray-400 transition-transform ${expandedAttributes.includes(attrType) ? 'rotate-180' : ''}`} />
+                                            </button>
+
+                                            {expandedAttributes.includes(attrType) && (
+                                                <div className="bg-gray-50 px-4 pb-3 flex flex-wrap gap-2">
+                                                    {attrData.values.map(value => {
+                                                        const isSelected = formData.selectedAttributes[attrType]?.includes(value);
+                                                        return (
+                                                            <button
+                                                                key={value}
+                                                                onClick={() => toggleAttributeValue(attrType, value)}
+                                                                className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${isSelected ? 'bg-indigo-600 text-white' : 'bg-white border border-gray-200 text-gray-600 hover:border-indigo-300'}`}
+                                                            >
+                                                                {value.replace(/_/g, ' ')}
+                                                            </button>
+                                                        );
+                                                    })}
+                                                </div>
+                                            )}
+                                        </div>
+                                    ))}
+                                </div>
+
+                                {/* Selected Attributes Count */}
+                                <div className="mt-4 p-3 bg-indigo-50 rounded-xl">
+                                    <p className="text-sm text-indigo-700">
+                                        <strong>{selectedAttributesCount}</strong>개 속성 선택됨
+                                    </p>
+                                </div>
+                            </div>
+
                             {/* Trait Sliders */}
-                            <div>
+                            <div className="lg:col-span-1">
                                 <h3 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
                                     <Sliders size={20} className="text-brand-500" />
-                                    타겟 고객 특성 (범위 설정)
+                                    타겟 소비자 특성
                                 </h3>
-                                <div className="space-y-5">
+                                <p className="text-sm text-gray-500 mb-4">범위를 조정하여 타겟 설정</p>
+                                <div className="space-y-4 max-h-[400px] overflow-auto pr-2">
                                     {TRAITS_CONFIG.map(trait => {
                                         const range = formData.targetTraits[trait.key] || [0.3, 0.7];
                                         return (
-                                            <div key={trait.key} className="bg-gray-50 p-4 rounded-xl">
-                                                <div className="flex justify-between items-center mb-2">
-                                                    <span className="text-sm font-bold text-gray-700">{trait.label}</span>
-                                                    <span className="text-xs text-brand-600 font-medium">
-                                                        {Math.round(range[0] * 100)}% ~ {Math.round(range[1] * 100)}%
+                                            <div key={trait.key} className="bg-gray-50 p-3 rounded-xl">
+                                                <div className="flex justify-between items-center mb-1">
+                                                    <span className="text-xs font-bold text-gray-700">{trait.label}</span>
+                                                    <span className="text-[10px] text-brand-600 font-medium">
+                                                        {Math.round(range[0] * 100)}~{Math.round(range[1] * 100)}%
                                                     </span>
                                                 </div>
-                                                <div className="flex items-center gap-3">
-                                                    <span className="text-[10px] text-gray-400 w-16 text-right">{trait.leftLabel}</span>
-                                                    <div className="flex-1 relative h-2 bg-gray-200 rounded-full">
+                                                <div className="flex items-center gap-2">
+                                                    <span className="text-[9px] text-gray-400 w-12 text-right">{trait.leftLabel}</span>
+                                                    <div className="flex-1 relative h-1.5 bg-gray-200 rounded-full">
                                                         <div
                                                             className="absolute h-full bg-brand-400 rounded-full"
                                                             style={{
@@ -407,7 +582,7 @@ const AudienceTargeting: React.FC = () => {
                                                             className="absolute w-full h-full opacity-0 cursor-pointer"
                                                         />
                                                     </div>
-                                                    <span className="text-[10px] text-gray-400 w-16">{trait.rightLabel}</span>
+                                                    <span className="text-[9px] text-gray-400 w-12">{trait.rightLabel}</span>
                                                 </div>
                                             </div>
                                         );
@@ -416,28 +591,38 @@ const AudienceTargeting: React.FC = () => {
                             </div>
 
                             {/* Radar Preview */}
-                            <div className="bg-gradient-to-br from-gray-900 to-gray-800 rounded-2xl p-6 text-white">
-                                <h3 className="text-lg font-bold mb-4">타겟 페르소나 프리뷰</h3>
-                                <div className="h-[350px]">
+                            <div className="lg:col-span-1 bg-gradient-to-br from-gray-900 to-gray-800 rounded-2xl p-5 text-white">
+                                <h3 className="text-sm font-bold mb-3">타겟 페르소나 프리뷰</h3>
+                                <div className="h-[280px]">
                                     <ResponsiveContainer width="100%" height="100%">
-                                        <RadarChart cx="50%" cy="50%" outerRadius="70%" data={radarData}>
+                                        <RadarChart cx="50%" cy="50%" outerRadius="65%" data={radarData}>
                                             <PolarGrid stroke="#ffffff30" />
-                                            <PolarAngleAxis dataKey="subject" tick={{ fill: '#9ca3af', fontSize: 10 }} />
+                                            <PolarAngleAxis dataKey="subject" tick={{ fill: '#9ca3af', fontSize: 8 }} />
                                             <PolarRadiusAxis angle={30} domain={[0, 100]} tick={false} axisLine={false} />
                                             <Radar name="Min" dataKey="min" stroke="#60a5fa" fill="#3b82f6" fillOpacity={0.3} />
                                             <Radar name="Max" dataKey="max" stroke="#a78bfa" fill="#8b5cf6" fillOpacity={0.5} />
                                         </RadarChart>
                                     </ResponsiveContainer>
                                 </div>
-                                <div className="mt-4 flex items-center gap-4 justify-center text-sm">
-                                    <div className="flex items-center gap-2">
-                                        <div className="w-3 h-3 bg-blue-500 rounded-full opacity-50" />
-                                        <span className="text-gray-300">최소 범위</span>
+
+                                {/* Selection Summary */}
+                                <div className="mt-3 pt-3 border-t border-white/20 text-xs">
+                                    <p className="text-gray-400 mb-2">선택된 조건:</p>
+                                    <div className="flex flex-wrap gap-1">
+                                        {formData.selectedIndustry.slice(0, 3).map(path => (
+                                            <span key={path} className="px-2 py-0.5 bg-brand-500/30 rounded text-[10px]">
+                                                {path.split('.').pop()?.replace(/_/g, ' ')}
+                                            </span>
+                                        ))}
+                                        {formData.selectedIndustry.length > 3 && (
+                                            <span className="px-2 py-0.5 bg-gray-500/30 rounded text-[10px]">
+                                                +{formData.selectedIndustry.length - 3}
+                                            </span>
+                                        )}
                                     </div>
-                                    <div className="flex items-center gap-2">
-                                        <div className="w-3 h-3 bg-purple-500 rounded-full opacity-70" />
-                                        <span className="text-gray-300">최대 범위</span>
-                                    </div>
+                                    {selectedAttributesCount > 0 && (
+                                        <p className="text-indigo-300 mt-2">+ {selectedAttributesCount}개 속성 필터</p>
+                                    )}
                                 </div>
                             </div>
                         </div>
@@ -465,8 +650,64 @@ const AudienceTargeting: React.FC = () => {
                                 </div>
                             </div>
 
+                            {/* Targeting Summary */}
+                            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                                {/* Industry Selected */}
+                                <div className="bg-white border border-gray-200 rounded-2xl p-6">
+                                    <h3 className="text-sm font-bold text-gray-800 mb-3 flex items-center gap-2">
+                                        <Building2 size={16} className="text-brand-500" />
+                                        산업 분류 (What)
+                                    </h3>
+                                    <div className="flex flex-wrap gap-2">
+                                        {formData.selectedIndustry.map(path => (
+                                            <span key={path} className="px-2 py-1 bg-brand-100 text-brand-700 rounded-lg text-xs">
+                                                {path.replace(/\./g, ' > ').replace(/_/g, ' ')}
+                                            </span>
+                                        ))}
+                                    </div>
+                                </div>
+
+                                {/* Attributes Selected */}
+                                <div className="bg-white border border-gray-200 rounded-2xl p-6">
+                                    <h3 className="text-sm font-bold text-gray-800 mb-3 flex items-center gap-2">
+                                        <Tags size={16} className="text-indigo-500" />
+                                        속성 필터 (How)
+                                    </h3>
+                                    <div className="flex flex-wrap gap-2">
+                                        {Object.entries(formData.selectedAttributes).map(([type, values]) =>
+                                            values?.map(value => (
+                                                <span key={`${type}-${value}`} className="px-2 py-1 bg-indigo-100 text-indigo-700 rounded-lg text-xs">
+                                                    {type.replace(/_/g, ' ')}: {value.replace(/_/g, ' ')}
+                                                </span>
+                                            ))
+                                        )}
+                                        {selectedAttributesCount === 0 && (
+                                            <span className="text-gray-400 text-sm">필터 없음</span>
+                                        )}
+                                    </div>
+                                </div>
+
+                                {/* Region */}
+                                <div className="bg-white border border-gray-200 rounded-2xl p-6">
+                                    <h3 className="text-sm font-bold text-gray-800 mb-3 flex items-center gap-2">
+                                        <MapPin size={16} className="text-green-500" />
+                                        지역
+                                    </h3>
+                                    <div className="flex flex-wrap gap-2">
+                                        {formData.regions.map(region => (
+                                            <span key={region} className="px-2 py-1 bg-green-100 text-green-700 rounded-lg text-xs">
+                                                {region}
+                                            </span>
+                                        ))}
+                                        {formData.regions.length === 0 && (
+                                            <span className="px-2 py-1 bg-gray-100 text-gray-600 rounded-lg text-xs">전국</span>
+                                        )}
+                                    </div>
+                                </div>
+                            </div>
+
                             {/* Persona Distribution */}
-                            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                                 <div className="bg-white border border-gray-200 rounded-2xl p-6">
                                     <h3 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
                                         <BarChart3 size={20} className="text-brand-500" />
@@ -515,22 +756,6 @@ const AudienceTargeting: React.FC = () => {
                                             </div>
                                         ))}
                                     </div>
-
-                                    <div className="mt-6 pt-4 border-t border-gray-100">
-                                        <h4 className="text-sm font-bold text-gray-700 mb-3">선택한 타겟</h4>
-                                        <div className="flex flex-wrap gap-2">
-                                            {formData.selectedTaxonomy.map(path => (
-                                                <span key={path} className="px-2 py-1 bg-gray-100 text-gray-600 rounded-lg text-xs">
-                                                    {path.split('.').pop()}
-                                                </span>
-                                            ))}
-                                            {formData.regions.map(region => (
-                                                <span key={region} className="px-2 py-1 bg-blue-100 text-blue-600 rounded-lg text-xs">
-                                                    {region}
-                                                </span>
-                                            ))}
-                                        </div>
-                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -550,10 +775,10 @@ const AudienceTargeting: React.FC = () => {
                     {step < 3 ? (
                         <button
                             onClick={step === 2 ? calculateAudience : () => setStep(s => s + 1)}
-                            disabled={isLoading || (step === 1 && formData.selectedTaxonomy.length === 0)}
+                            disabled={isLoading || (step === 1 && formData.selectedIndustry.length === 0)}
                             className="flex items-center gap-2 px-8 py-2 rounded-xl font-bold bg-brand-600 hover:bg-brand-700 text-white shadow-lg shadow-brand-200 disabled:opacity-50 transition-colors"
                         >
-                            {isLoading ? '분석 중...' : step === 2 ? '오디언스 분석' : '다음'}
+                            {isLoading ? '분석 중...' : step === 2 ? '오디언스 분석' : '다음: 속성 선택'}
                             {!isLoading && <ChevronRight size={18} />}
                         </button>
                     ) : (
