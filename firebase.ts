@@ -23,6 +23,12 @@ try {
     if (firebaseConfig.apiKey === "YOUR_API_KEY_HERE") {
         console.warn("Firebase config is missing. Please update firebase.ts");
     } else {
+        console.log("Firebase Config Loading:", {
+            apiKeyExists: !!firebaseConfig.apiKey,
+            apiKeyLength: firebaseConfig.apiKey?.length,
+            projectId: firebaseConfig.projectId
+        });
+
         app = initializeApp(firebaseConfig);
         db = getFirestore(app);
         auth = getAuth(app);
