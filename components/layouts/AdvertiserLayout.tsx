@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { LayoutDashboard, PlusCircle, List, Wallet, Settings, LogOut, PenTool } from 'lucide-react';
+import { LayoutDashboard, PlusCircle, List, Wallet, Settings, LogOut, PenTool, Target } from 'lucide-react';
 import AdvertiserDashboard from '../../pages/advertiser/Dashboard';
 import CreateCampaign from '../../pages/advertiser/CreateCampaign';
 import ProposalBuilder from '../../pages/advertiser/ProposalBuilder';
+import AudienceTargeting from '../../pages/advertiser/AudienceTargeting';
 import Reports from '../../pages/advertiser/Reports';
 import WalletPage from '../../pages/advertiser/Wallet';
 import SettingsPage from '../../pages/advertiser/Settings';
@@ -24,6 +25,7 @@ const AdvertiserLayout: React.FC = () => {
 
     const menuItems = [
         { icon: LayoutDashboard, label: 'Dashboard', path: '/advertiser/dashboard' },
+        { icon: Target, label: 'Audience Targeting', path: '/advertiser/audience' },
         { icon: PlusCircle, label: 'Create Campaign', path: '/advertiser/create' },
         { icon: PenTool, label: 'Proposal Builder', path: '/advertiser/proposal' },
         { icon: List, label: 'Reports', path: '/advertiser/reports' },
@@ -39,6 +41,7 @@ const AdvertiserLayout: React.FC = () => {
         if (path === '/advertiser/create') {
             return <CreateCampaign />;
         }
+        if (path === '/advertiser/audience') return <AudienceTargeting />;
         if (path === '/advertiser/proposal') return <ProposalBuilder />;
         if (path === '/advertiser/reports') return <Reports />;
         if (path === '/advertiser/wallet') return <WalletPage />;
