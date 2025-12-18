@@ -2438,3 +2438,280 @@ export const getJackpotStatus = functions.https.onCall(async (data, context) => 
     }
 });
 
+// ============================================
+// getTaxonomy - Fetch Industry/Attribute taxonomy from Firestore
+// ============================================
+export const getTaxonomy = onCall({
+    cors: true,
+}, async (request) => {
+    const db = admin.firestore();
+    const { type } = request.data || {};
+
+    try {
+        if (type === 'industry') {
+            const doc = await db.doc('settings/taxonomy_industry').get();
+            if (!doc.exists) {
+                throw new HttpsError("not-found", "Industry taxonomy not found");
+            }
+            return { success: true, data: doc.data() };
+        }
+
+        if (type === 'attributes') {
+            const doc = await db.doc('settings/taxonomy_attributes').get();
+            if (!doc.exists) {
+                throw new HttpsError("not-found", "Attribute taxonomy not found");
+            }
+            return { success: true, data: doc.data() };
+        }
+
+        // Return both if no type specified
+        const [industryDoc, attrDoc, metaDoc] = await Promise.all([
+            db.doc('settings/taxonomy_industry').get(),
+            db.doc('settings/taxonomy_attributes').get(),
+            db.doc('settings/taxonomy_meta').get(),
+        ]);
+
+        return {
+            success: true,
+            industry: industryDoc.exists ? industryDoc.data() : null,
+            attributes: attrDoc.exists ? attrDoc.data() : null,
+            meta: metaDoc.exists ? metaDoc.data() : null,
+        };
+    } catch (error: any) {
+        functions.logger.error("getTaxonomy error:", error);
+        throw new HttpsError("internal", error.message);
+    }
+});
+
+// ============================================
+// saveAudience - Save advertiser's target audience configuration
+// ============================================
+export const saveAudience = onCall({
+    cors: true,
+}, async (request) => {
+    if (!request.auth) {
+        throw new HttpsError("unauthenticated", "로그인이 필요합니다.");
+    }
+
+    const uid = request.auth.uid;
+    const db = admin.firestore();
+
+    const {
+        name,
+        industryPaths,      // ["Fashion.Apparel.Womenswear", ...]
+        attributes,         // { Price_Positioning: ["Premium"], Sustainability: ["Eco_Friendly"] }
+        targetTraits,       // { priceVsBrand: [0.3, 0.7], ... }
+        regions,
+        estimatedReach,
+    } = request.data;
+
+    if (!name || !industryPaths || industryPaths.length === 0) {
+        throw new HttpsError("invalid-argument", "필수 정보가 누락되었습니다.");
+    }
+
+    try {
+        const audienceRef = db.collection('audiences').doc();
+        await audienceRef.set({
+            advertiserId: uid,
+            name,
+            industryPaths,
+            attributes: attributes || {},
+            targetTraits: targetTraits || {},
+            regions: regions || [],
+            estimatedReach: estimatedReach || 0,
+            status: 'active',
+            createdAt: admin.firestore.FieldValue.serverTimestamp(),
+            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        });
+
+        functions.logger.info("Audience saved", { audienceId: audienceRef.id, uid });
+
+        return {
+            success: true,
+            audienceId: audienceRef.id,
+            message: '오디언스가 저장되었습니다.'
+        };
+    } catch (error: any) {
+        functions.logger.error("saveAudience error:", error);
+        throw new HttpsError("internal", error.message);
+    }
+});
+
+// ============================================
+// getMyAudiences - Get advertiser's saved audiences
+// ============================================
+export const getMyAudiences = onCall({
+    cors: true,
+}, async (request) => {
+    if (!request.auth) {
+        throw new HttpsError("unauthenticated", "로그인이 필요합니다.");
+    }
+
+    const uid = request.auth.uid;
+    const db = admin.firestore();
+
+    try {
+        const snapshot = await db.collection('audiences')
+            .where('advertiserId', '==', uid)
+            .where('status', '==', 'active')
+            .orderBy('createdAt', 'desc')
+            .limit(50)
+            .get();
+
+        const audiences = snapshot.docs.map(doc => ({
+            id: doc.id,
+            ...doc.data()
+        }));
+
+        return { success: true, audiences };
+    } catch (error: any) {
+        functions.logger.error("getMyAudiences error:", error);
+        throw new HttpsError("internal", error.message);
+    }
+});
+
+// ============================================
+// calculateAttributeScores - Calculate user's attribute affinity scores
+// ============================================
+export const calculateAttributeScores = onCall({
+    cors: true,
+}, async (request) => {
+    if (!request.auth) {
+        throw new HttpsError("unauthenticated", "로그인이 필요합니다.");
+    }
+
+    const uid = request.auth.uid;
+    const db = admin.firestore();
+
+    try {
+        // 1. Get user's activities
+        const activitiesSnap = await db.collection(`users/${uid}/activities`)
+            .orderBy("createdAt", "desc")
+            .limit(500)
+            .get();
+        const activities = activitiesSnap.docs.map(doc => doc.data());
+
+        // 2. Get survey responses
+        const responsesSnap = await db.collection(`users/${uid}/surveyResponses`).get();
+        const responses: Record<string, any> = {};
+        responsesSnap.docs.forEach(doc => {
+            responses[doc.id] = doc.data();
+        });
+
+        // 3. Calculate attribute scores
+        const attributeScores: Record<string, number> = {};
+
+        // Price Positioning - based on purchasing power and brand preference
+        const spending = responses['spending']?.responses || {};
+        const power = responses['power']?.responses || {};
+
+        if (power['p10']?.answer) {
+            const purchasingPower = (power['p10'].answer - 1) / 4;
+            if (purchasingPower >= 0.8) attributeScores['Price_Positioning.Luxury'] = 0.8;
+            else if (purchasingPower >= 0.6) attributeScores['Price_Positioning.Premium'] = 0.7;
+            else if (purchasingPower >= 0.4) attributeScores['Price_Positioning.Mid'] = 0.6;
+            else attributeScores['Price_Positioning.Value'] = 0.6;
+        }
+
+        // Sustainability - based on eco activities and survey
+        const values = responses['values']?.responses || {};
+        if (values['v1']?.answer) {
+            const ecoScore = (values['v1'].answer - 1) / 4;
+            if (ecoScore >= 0.7) {
+                attributeScores['Sustainability.Eco_Friendly'] = ecoScore;
+                attributeScores['Sustainability.Cruelty_Free'] = ecoScore * 0.8;
+            }
+        }
+
+        // Check ESG activities
+        const esgActivities = activities.filter(a =>
+            (a.taxonomyTags || []).some((t: string) =>
+                t.includes('ESG') || t.includes('Sustainability') || t.includes('Environment')
+            )
+        );
+        if (esgActivities.length > 10) {
+            attributeScores['Sustainability.Eco_Friendly'] = Math.max(
+                attributeScores['Sustainability.Eco_Friendly'] || 0,
+                0.75
+            );
+        }
+
+        // Channel Preference - based on online preference
+        if (spending['s7']?.answer) {
+            const onlinePref = (spending['s7'].answer - 1) / 4;
+            if (onlinePref >= 0.7) {
+                attributeScores['Channel_Preference.Online_First'] = onlinePref;
+            } else if (onlinePref <= 0.3) {
+                attributeScores['Channel_Preference.Offline_First'] = 1 - onlinePref;
+            } else {
+                attributeScores['Channel_Preference.Omnichannel'] = 0.6;
+            }
+        }
+
+        // Purchase Decision Style - based on impulse buying
+        const impulseMap: Record<string, number> = {
+            '거의 안함': 0.1, '가끔': 0.3, '보통': 0.5, '자주': 0.7, '매우 자주': 0.9
+        };
+        if (spending['s3']?.answer && impulseMap[spending['s3'].answer]) {
+            const impulseScore = impulseMap[spending['s3'].answer];
+            if (impulseScore >= 0.7) {
+                attributeScores['Purchase_Decision_Style.Impulse'] = impulseScore;
+            } else if (impulseScore <= 0.3) {
+                attributeScores['Purchase_Decision_Style.Research_Heavy'] = 1 - impulseScore;
+            }
+        }
+
+        // Brand Loyalty - based on activity patterns
+        const brandCounts: Record<string, number> = {};
+        for (const activity of activities) {
+            if (activity.brand) {
+                brandCounts[activity.brand] = (brandCounts[activity.brand] || 0) + 1;
+            }
+        }
+        const brandValues = Object.values(brandCounts);
+        if (brandValues.length > 0) {
+            const maxBrandPurchase = Math.max(...brandValues);
+            const totalPurchases = brandValues.reduce((a, b) => a + b, 0);
+            const loyaltyScore = Math.min(1, (maxBrandPurchase / totalPurchases) * 1.5);
+            if (loyaltyScore >= 0.6) {
+                attributeScores['Purchase_Decision_Style.Brand_Loyal'] = loyaltyScore;
+            }
+        }
+
+        // Early Adopter / Trend Seeker
+        if (spending['s6']?.answer) {
+            const earlyAdopterScore = (spending['s6'].answer - 1) / 4;
+            if (earlyAdopterScore >= 0.7) {
+                attributeScores['Purchase_Decision_Style.Trend_Seeker'] = earlyAdopterScore;
+            }
+        }
+
+        // 4. Save attribute scores
+        await db.doc(`users/${uid}/persona/current`).set({
+            attributeScores,
+            attributeScoresUpdatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        }, { merge: true });
+
+        // 5. Update user profile summary
+        const topAttributes = Object.entries(attributeScores)
+            .sort(([, a], [, b]) => b - a)
+            .slice(0, 5)
+            .map(([key]) => key);
+
+        await db.doc(`users/${uid}`).update({
+            topAttributes,
+            attributeScoresCount: Object.keys(attributeScores).length,
+        });
+
+        functions.logger.info("Attribute scores calculated", { uid, count: Object.keys(attributeScores).length });
+
+        return {
+            success: true,
+            attributeScores,
+            topAttributes,
+        };
+    } catch (error: any) {
+        functions.logger.error("calculateAttributeScores error:", error);
+        throw new HttpsError("internal", error.message);
+    }
+});
