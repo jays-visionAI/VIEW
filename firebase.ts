@@ -4,12 +4,12 @@ import { getAuth, connectAuthEmulator } from 'firebase/auth';
 import { getFunctions, connectFunctionsEmulator } from 'firebase/functions';
 
 const firebaseConfig = {
-    apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
-    authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
-    projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
-    storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
-    messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
-    appId: import.meta.env.VITE_FIREBASE_APP_ID
+    apiKey: import.meta.env.VITE_FIREBASE_API_KEY || "AIzaSyAzSQOR_ljVrI7eK8qLXHaLokvDVM9U7vI",
+    authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || "view-web3-official-1765899415.firebaseapp.com",
+    projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || "view-web3-official-1765899415",
+    storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || "view-web3-official-1765899415.firebasestorage.app",
+    messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || "130075590688",
+    appId: import.meta.env.VITE_FIREBASE_APP_ID || "1:130075590688:web:a5908bb8b9d6c1cd2c3c45"
 };
 
 // Initialize Firebase variables
