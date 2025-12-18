@@ -58,13 +58,18 @@ const PersonaDashboard: React.FC<{ userData: any; onRefresh: () => void }> = ({ 
   const { persona } = userData;
   const traits = persona.traits || {};
 
-  // Data for Radar Chart
+  // Data for Radar Chart - 10 Traits Model
   const chartData = [
     { subject: '가격중시', A: (1 - (traits.priceVsBrand || 0.5)) * 100, fullMark: 100 },
     { subject: '충동성', A: (traits.impulseBuying || 0.5) * 100, fullMark: 100 },
     { subject: '얼리어답터', A: (traits.earlyAdopter || 0.5) * 100, fullMark: 100 },
     { subject: '온라인', A: (traits.onlinePreference || 0.5) * 100, fullMark: 100 },
     { subject: '소비력', A: (traits.purchasingPower || 0.5) * 100, fullMark: 100 },
+    { subject: '브랜드충성', A: (traits.brandLoyalty || 0.5) * 100, fullMark: 100 },
+    { subject: '사회적영향', A: (traits.socialInfluence || 0.5) * 100, fullMark: 100 },
+    { subject: 'ESG가치', A: (traits.sustainabilityValue || 0.5) * 100, fullMark: 100 },
+    { subject: '경험추구', A: (traits.experienceSeeker || 0.5) * 100, fullMark: 100 },
+    { subject: '계획구매', A: (traits.planningHorizon || 0.5) * 100, fullMark: 100 },
   ];
 
   return (

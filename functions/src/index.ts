@@ -1487,13 +1487,20 @@ export const calculatePersona = onCall({
             .get();
         const activities = activitiesSnap.docs.map(doc => doc.data());
 
-        // 3. 특성 점수 계산 (0-1 scale)
+        // 3. 특성 점수 계산 (0-1 scale) - 10 Traits Model
         const traits = {
-            priceVsBrand: 0.5,
-            impulseBuying: 0.5,
-            earlyAdopter: 0.5,
-            onlinePreference: 0.5,
-            purchasingPower: 0.5,
+            // 기존 5가지
+            priceVsBrand: 0.5,       // 가격 중시(0) ↔ 브랜드 중시(1)
+            impulseBuying: 0.5,      // 신중한 구매(0) ↔ 충동 구매(1)
+            earlyAdopter: 0.5,       // 안정 추구(0) ↔ 얼리어답터(1)
+            onlinePreference: 0.5,   // 오프라인(0) ↔ 온라인(1)
+            purchasingPower: 0.5,    // 저예산(0) ↔ 고예산(1)
+            // 확장 5가지
+            brandLoyalty: 0.5,       // 다양한 브랜드(0) ↔ 충성 고객(1)
+            socialInfluence: 0.5,    // 독립적 결정(0) ↔ 사회적 영향(1)
+            sustainabilityValue: 0.5,// 무관심(0) ↔ ESG/친환경 중시(1)
+            experienceSeeker: 0.5,   // 소유 중시(0) ↔ 경험 중시(1)
+            planningHorizon: 0.5,    // 즉시 구매(0) ↔ 장기 계획(1)
         };
 
         // spending 카테고리 응답 분석
@@ -1527,6 +1534,60 @@ export const calculatePersona = onCall({
         if (power['p10']?.answer) {
             traits.purchasingPower = (power['p10'].answer - 1) / 4;
         }
+
+        // lifestyle 카테고리 분석 (확장 특성용)
+        const lifestyle = responses['lifestyle']?.responses || {};
+        const values = responses['values']?.responses || {};
+
+        // 브랜드 충성도 - 활동 로그에서 반복 구매 패턴 분석
+        const brandCounts: Record<string, number> = {};
+        for (const activity of activities) {
+            if (activity.brand) {
+                brandCounts[activity.brand] = (brandCounts[activity.brand] || 0) + 1;
+            }
+        }
+        const brandValues = Object.values(brandCounts);
+        if (brandValues.length > 0) {
+            const maxBrandPurchase = Math.max(...brandValues);
+            const totalPurchases = brandValues.reduce((a, b) => a + b, 0);
+            traits.brandLoyalty = Math.min(1, (maxBrandPurchase / totalPurchases) * 1.5);
+        }
+
+        // 사회적 영향력 수용도 - 리뷰/인플루언서 반응 기반
+        if (lifestyle['l1']?.answer) { // 구매 전 리뷰 확인 빈도
+            traits.socialInfluence = (lifestyle['l1'].answer - 1) / 4;
+        }
+
+        // 지속가능성 가치 - ESG/친환경 관심도
+        if (values['v1']?.answer) { // 친환경 제품 선호도
+            traits.sustainabilityValue = (values['v1'].answer - 1) / 4;
+        }
+        // 활동 로그에서 ESG 태그 비율 반영
+        const esgActivities = activities.filter(a =>
+            (a.taxonomyTags || []).some((t: string) => t.includes('ESG') || t.includes('Sustainability'))
+        );
+        if (activities.length > 0) {
+            const esgRatio = esgActivities.length / activities.length;
+            traits.sustainabilityValue = (traits.sustainabilityValue + esgRatio) / 2;
+        }
+
+        // 경험 추구 성향 - 여행/체험 vs 물건 구매 비율
+        const experienceCategories = ['Travel', 'Entertainment', 'Health_Wellness'];
+        const experienceActivities = activities.filter(a =>
+            (a.taxonomyTags || []).some((t: string) =>
+                experienceCategories.some(cat => t.startsWith(cat))
+            )
+        );
+        if (activities.length > 0) {
+            traits.experienceSeeker = Math.min(1, (experienceActivities.length / activities.length) * 2);
+        }
+
+        // 계획 기간 - 구매 결정까지 걸리는 시간
+        const planningMap: Record<string, number> = { '즉시': 0.1, '하루': 0.3, '일주일': 0.5, '한달': 0.7, '그 이상': 0.9 };
+        if (spending['s8']?.answer && planningMap[spending['s8'].answer]) {
+            traits.planningHorizon = planningMap[spending['s8'].answer];
+        }
+
 
         // 4. Taxonomy 점수 집계
         const taxonomyScores: Record<string, number> = {};
