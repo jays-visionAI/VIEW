@@ -224,54 +224,55 @@ const Home: React.FC = () => {
         </div>
 
         {/* 2. Main Action Grid (Bento Box Style) */}
-        <div className="px-5 -mt-6 relative z-20">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4">
+        <div className="px-5 -mt-6 relative z-20 space-y-3">
 
-            {/* Ad Card (Large - Redesigned) */}
-            <button
-              onClick={() => setActiveTab(Tab.Ad)}
-              className="col-span-2 relative h-40 md:h-48 rounded-[32px] overflow-hidden shadow-2xl shadow-brand-500/40 active:scale-[0.96] transition-all duration-300 group ring-4 ring-transparent hover:ring-brand-500/20"
-            >
-              {/* Background Gradient */}
-              <div className="absolute inset-0 bg-gradient-to-br from-[#8b5cf6] via-[#7c3aed] to-[#6d28d9]"></div>
+          {/* Ad Card (Full Width) */}
+          <button
+            onClick={() => setActiveTab(Tab.Ad)}
+            className="w-full relative h-40 md:h-48 rounded-[32px] overflow-hidden shadow-2xl shadow-brand-500/40 active:scale-[0.98] transition-all duration-300 group ring-4 ring-transparent hover:ring-brand-500/20"
+          >
+            {/* Background Gradient */}
+            <div className="absolute inset-0 bg-gradient-to-br from-[#8b5cf6] via-[#7c3aed] to-[#6d28d9]"></div>
 
-              {/* Decorative circles */}
-              <div className="absolute -right-8 -top-8 w-32 h-32 bg-white/10 rounded-full blur-2xl"></div>
-              <div className="absolute -left-8 -bottom-8 w-32 h-32 bg-brand-400/20 rounded-full blur-2xl"></div>
+            {/* Decorative circles */}
+            <div className="absolute -right-8 -top-8 w-32 h-32 bg-white/10 rounded-full blur-2xl"></div>
+            <div className="absolute -left-8 -bottom-8 w-32 h-32 bg-brand-400/20 rounded-full blur-2xl"></div>
 
-              <div className="absolute inset-0 p-6 flex items-center justify-between z-10">
-                <div className="flex flex-col items-start justify-center h-full space-y-3">
-                  <div className="bg-white/20 backdrop-blur-md border border-white/20 text-white text-[11px] font-bold px-3 py-1 rounded-full flex items-center shadow-lg">
-                    <Sparkles size={10} className="mr-1 text-yellow-300 fill-yellow-300" />
-                    추천
-                  </div>
-                  <div className="text-left">
-                    <h3 className="text-3xl font-black text-white mb-2 tracking-tight drop-shadow-md">광고 보고 적립</h3>
-                    <div className="bg-black/20 backdrop-blur-sm px-3 py-1.5 rounded-lg border border-white/10 inline-flex items-center">
-                      <span className="text-brand-100 text-sm font-bold">최대 {5 * getCurrentTier(userState.staked).multiplier} VIEW / 회</span>
-                    </div>
-                  </div>
+            <div className="absolute inset-0 p-6 flex items-center justify-between z-10">
+              <div className="flex flex-col items-start justify-center h-full space-y-3">
+                <div className="bg-white/20 backdrop-blur-md border border-white/20 text-white text-[11px] font-bold px-3 py-1 rounded-full flex items-center shadow-lg">
+                  <Sparkles size={10} className="mr-1 text-yellow-300 fill-yellow-300" />
+                  추천
                 </div>
-
-                <div className="relative">
-                  {/* Pulsing rings */}
-                  <div className="absolute inset-0 bg-white/30 rounded-full animate-ping opacity-75"></div>
-                  <div className="absolute -inset-2 bg-white/10 rounded-full animate-pulse"></div>
-
-                  <div className="relative w-16 h-16 bg-white rounded-full flex items-center justify-center shadow-[0_0_30px_rgba(255,255,255,0.4)] group-hover:scale-110 transition-transform duration-300 group-active:scale-95">
-                    <PlayCircle size={32} className="text-brand-600 fill-brand-600 ml-1" />
+                <div className="text-left">
+                  <h3 className="text-3xl font-black text-white mb-2 tracking-tight drop-shadow-md">광고 보고 적립</h3>
+                  <div className="bg-black/20 backdrop-blur-sm px-3 py-1.5 rounded-lg border border-white/10 inline-flex items-center">
+                    <span className="text-brand-100 text-sm font-bold">최대 {5 * getCurrentTier(userState.staked).multiplier} VIEW / 회</span>
                   </div>
                 </div>
               </div>
 
-              {/* Shine effect */}
-              <div className="absolute inset-0 bg-gradient-to-tr from-white/0 via-white/10 to-white/0 opacity-0 group-hover:opacity-100 transition-opacity duration-700 pointer-events-none transform translate-x-full group-hover:translate-x-[-100%]"></div>
-            </button>
+              <div className="relative">
+                {/* Pulsing rings */}
+                <div className="absolute inset-0 bg-white/30 rounded-full animate-ping opacity-75"></div>
+                <div className="absolute -inset-2 bg-white/10 rounded-full animate-pulse"></div>
 
+                <div className="relative w-16 h-16 bg-white rounded-full flex items-center justify-center shadow-[0_0_30px_rgba(255,255,255,0.4)] group-hover:scale-110 transition-transform duration-300 group-active:scale-95">
+                  <PlayCircle size={32} className="text-brand-600 fill-brand-600 ml-1" />
+                </div>
+              </div>
+            </div>
+
+            {/* Shine effect */}
+            <div className="absolute inset-0 bg-gradient-to-tr from-white/0 via-white/10 to-white/0 opacity-0 group-hover:opacity-100 transition-opacity duration-700 pointer-events-none transform translate-x-full group-hover:translate-x-[-100%]"></div>
+          </button>
+
+          {/* Secondary Cards Grid (2 columns) */}
+          <div className="grid grid-cols-2 gap-3">
             {/* Jackpot Card */}
             <button
               onClick={() => setActiveTab(Tab.Jackpot)}
-              className="col-span-1 bg-white rounded-[28px] p-5 shadow-sm border border-gray-100 relative overflow-hidden group hover:shadow-md transition-all active:scale-[0.98] flex flex-col justify-between h-36 md:h-40"
+              className="bg-white rounded-[28px] p-5 shadow-sm border border-gray-100 relative overflow-hidden group hover:shadow-md transition-all active:scale-[0.98] flex flex-col justify-between h-36 md:h-40"
             >
               <div className="flex justify-between items-start">
                 <div className="w-10 h-10 bg-yellow-50 rounded-2xl flex items-center justify-center text-yellow-600 group-hover:rotate-12 transition-transform">
@@ -288,7 +289,7 @@ const Home: React.FC = () => {
             {/* Crypto Game Card */}
             <button
               onClick={() => setActiveTab(Tab.Reward)}
-              className="col-span-1 bg-white rounded-[28px] p-5 shadow-sm border border-gray-100 relative overflow-hidden group hover:shadow-md transition-all active:scale-[0.98] flex flex-col justify-between h-36 md:h-40"
+              className="bg-white rounded-[28px] p-5 shadow-sm border border-gray-100 relative overflow-hidden group hover:shadow-md transition-all active:scale-[0.98] flex flex-col justify-between h-36 md:h-40"
             >
               <div className="flex justify-between items-start">
                 <div className="w-10 h-10 bg-orange-50 rounded-2xl flex items-center justify-center text-orange-600 group-hover:rotate-12 transition-transform">
@@ -303,8 +304,8 @@ const Home: React.FC = () => {
                 <p className="text-gray-400 text-xs">시세 맞추고 보상</p>
               </div>
             </button>
-
           </div>
+
         </div>
 
         {/* 3. Featured Campaigns (Horizontal Scroll) */}
