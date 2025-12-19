@@ -3489,3 +3489,360 @@ function generateTargetingSuggestions(
     };
 }
 
+// ============================================
+// analyzeCampaignPerformance - Scheduled job for campaign optimization alerts
+// Runs every 6 hours to analyze campaign performance and generate notifications
+// ============================================
+export const analyzeCampaignPerformance = functions.pubsub
+    .schedule('0 */6 * * *')  // Every 6 hours
+    .timeZone('UTC')
+    .onRun(async (context) => {
+        const db = admin.firestore();
+        functions.logger.info('Starting campaign performance analysis...');
+
+        try {
+            // Get active campaigns
+            const campaignsSnap = await db.collection('campaigns')
+                .where('status', '==', 'active')
+                .limit(100)
+                .get();
+
+            let notificationsSent = 0;
+
+            for (const campaignDoc of campaignsSnap.docs) {
+                const campaign = campaignDoc.data();
+                const campaignId = campaignDoc.id;
+
+                try {
+                    // Analyze campaign and generate notifications
+                    const notifications = await generateCampaignNotifications(db, campaignId, campaign);
+
+                    // Save notifications
+                    for (const notification of notifications) {
+                        await db.collection(`advertisers/${campaign.advertiserId}/notifications`).add({
+                            ...notification,
+                            campaignId,
+                            campaignName: campaign.name,
+                            createdAt: admin.firestore.FieldValue.serverTimestamp(),
+                            read: false,
+                        });
+                        notificationsSent++;
+                    }
+                } catch (error: any) {
+                    functions.logger.warn(`Failed to analyze campaign ${campaignId}:`, error.message);
+                }
+            }
+
+            functions.logger.info('Campaign analysis complete', {
+                campaignsAnalyzed: campaignsSnap.size,
+                notificationsSent
+            });
+            return null;
+        } catch (error: any) {
+            functions.logger.error('analyzeCampaignPerformance error:', error);
+            throw error;
+        }
+    });
+
+// Helper: Generate notifications for a campaign
+async function generateCampaignNotifications(
+    db: admin.firestore.Firestore,
+    campaignId: string,
+    campaign: any
+): Promise<Array<{
+    type: 'warning' | 'success' | 'info' | 'optimization';
+    title: string;
+    message: string;
+    priority: 'high' | 'medium' | 'low';
+    actionUrl?: string;
+    suggestedAction?: string;
+}>> {
+    const notifications: any[] = [];
+
+    // Get recent analytics (last 7 days)
+    const sevenDaysAgo = new Date();
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+
+    const analyticsSnap = await db.collection('campaignAnalytics')
+        .where('campaignId', '==', campaignId)
+        .where('createdAt', '>=', sevenDaysAgo)
+        .orderBy('createdAt', 'desc')
+        .limit(50)
+        .get();
+
+    if (analyticsSnap.empty) return notifications;
+
+    // Calculate metrics
+    let totalImpressions = 0;
+    let totalClicks = 0;
+    let totalConversions = 0;
+    let totalSpend = 0;
+
+    analyticsSnap.docs.forEach(doc => {
+        const data = doc.data();
+        totalImpressions += data.impressions || 0;
+        totalClicks += data.clicks || 0;
+        totalConversions += data.conversions || 0;
+        totalSpend += data.spend || 0;
+    });
+
+    const ctr = totalImpressions > 0 ? (totalClicks / totalImpressions) * 100 : 0;
+    const cvr = totalClicks > 0 ? (totalConversions / totalClicks) * 100 : 0;
+    const cpa = totalConversions > 0 ? totalSpend / totalConversions : 0;
+
+
+    // 1. Low CTR Warning
+    if (ctr < 1.0 && totalImpressions > 1000) {
+        notifications.push({
+            type: 'warning',
+            title: '낮은 클릭률 경고',
+            message: `CTR이 ${ctr.toFixed(2)}%로 평균(1.5%) 이하입니다. 크리에이티브나 타겟팅 조정을 고려해보세요.`,
+            priority: 'high',
+            suggestedAction: '크리에이티브 A/B 테스트 또는 타겟 오디언스 확장',
+        });
+    }
+
+    // 2. Low CVR Warning
+    if (cvr < 5.0 && totalClicks > 100) {
+        notifications.push({
+            type: 'warning',
+            title: '전환율 개선 필요',
+            message: `전환율이 ${cvr.toFixed(2)}%입니다. 랜딩페이지 최적화나 오디언스 재설정을 권장합니다.`,
+            priority: 'medium',
+            suggestedAction: '랜딩페이지 개선 또는 Attribute 타겟팅 세분화',
+        });
+    }
+
+    // 3. High CPA Alert
+    const budgetThreshold = campaign.dailyBudget * 0.3;
+    if (cpa > budgetThreshold && totalConversions > 0) {
+        notifications.push({
+            type: 'warning',
+            title: 'CPA 과다 지출',
+            message: `전환당 비용이 ₩${cpa.toLocaleString()}로 높습니다. 예산 효율성 검토가 필요합니다.`,
+            priority: 'high',
+            suggestedAction: '저성과 Attribute 타겟팅 제거 또는 입찰 조정',
+        });
+    }
+
+    // 4. Good Performance Celebration
+    if (cvr >= 15 && totalConversions >= 10) {
+        notifications.push({
+            type: 'success',
+            title: '🎉 우수 성과 달성!',
+            message: `전환율 ${cvr.toFixed(1)}%로 훌륭한 성과를 보이고 있습니다. 예산 증액을 고려해보세요!`,
+            priority: 'low',
+            suggestedAction: '예산 증액 및 유사 오디언스 확장',
+        });
+    }
+
+    // 5. Attribute Optimization Suggestion
+    if (totalImpressions > 5000 && cvr < 10) {
+        const currentAttributes = Object.values(campaign.attributes || {}).flat();
+        if (currentAttributes.length < 3) {
+            notifications.push({
+                type: 'optimization',
+                title: 'AI 타겟팅 최적화 제안',
+                message: '더 많은 Attribute를 추가하면 전환율을 높일 수 있습니다. AI 추천을 확인해보세요.',
+                priority: 'medium',
+                actionUrl: `/advertiser/campaigns/${campaignId}/edit`,
+                suggestedAction: 'AI 추천 Attribute 추가',
+            });
+        }
+    }
+
+    // 6. Budget Pacing Alert
+    const dailySpend = totalSpend / 7; // average daily spend
+    if (dailySpend > campaign.dailyBudget * 1.2) {
+        notifications.push({
+            type: 'info',
+            title: '예산 소진 속도 알림',
+            message: `일 평균 ₩${dailySpend.toLocaleString()} 지출로 설정 예산을 초과하고 있습니다.`,
+            priority: 'medium',
+            suggestedAction: '일일 예산 증액 또는 타겟팅 축소',
+        });
+    }
+
+    return notifications;
+}
+
+// ============================================
+// getCampaignNotifications - Get notifications for advertiser
+// ============================================
+export const getCampaignNotifications = onCall({
+    cors: true,
+}, async (request) => {
+    if (!request.auth) {
+        throw new HttpsError('unauthenticated', '로그인이 필요합니다.');
+    }
+
+    const db = admin.firestore();
+    const uid = request.auth.uid;
+    const { limit: queryLimit = 20, unreadOnly = false } = request.data || {};
+
+    try {
+        let query: admin.firestore.Query = db.collection(`advertisers/${uid}/notifications`)
+            .orderBy('createdAt', 'desc')
+            .limit(queryLimit);
+
+        if (unreadOnly) {
+            query = query.where('read', '==', false);
+        }
+
+        const notificationsSnap = await query.get();
+
+        const notifications = notificationsSnap.docs.map(doc => ({
+            id: doc.id,
+            ...doc.data(),
+            createdAt: doc.data().createdAt?.toDate?.() || null,
+        }));
+
+        // Count unread
+        const unreadSnap = await db.collection(`advertisers/${uid}/notifications`)
+            .where('read', '==', false)
+            .count()
+            .get();
+
+        return {
+            success: true,
+            notifications,
+            unreadCount: unreadSnap.data().count,
+        };
+    } catch (error: any) {
+        functions.logger.error('getCampaignNotifications error:', error);
+        throw new HttpsError('internal', error.message);
+    }
+});
+
+// ============================================
+// markNotificationRead - Mark notification as read
+// ============================================
+export const markNotificationRead = onCall({
+    cors: true,
+}, async (request) => {
+    if (!request.auth) {
+        throw new HttpsError('unauthenticated', '로그인이 필요합니다.');
+    }
+
+    const db = admin.firestore();
+    const uid = request.auth.uid;
+    const { notificationId, markAll = false } = request.data || {};
+
+    try {
+        if (markAll) {
+            // Mark all as read
+            const batch = db.batch();
+            const unreadSnap = await db.collection(`advertisers/${uid}/notifications`)
+                .where('read', '==', false)
+                .limit(100)
+                .get();
+
+            unreadSnap.docs.forEach(doc => {
+                batch.update(doc.ref, { read: true, readAt: admin.firestore.FieldValue.serverTimestamp() });
+            });
+
+            await batch.commit();
+
+            return { success: true, markedCount: unreadSnap.size };
+        } else if (notificationId) {
+            await db.doc(`advertisers/${uid}/notifications/${notificationId}`).update({
+                read: true,
+                readAt: admin.firestore.FieldValue.serverTimestamp(),
+            });
+
+            return { success: true, markedCount: 1 };
+        } else {
+            throw new HttpsError('invalid-argument', 'notificationId 또는 markAll이 필요합니다.');
+        }
+    } catch (error: any) {
+        functions.logger.error('markNotificationRead error:', error);
+        throw new HttpsError('internal', error.message);
+    }
+});
+
+// ============================================
+// triggerCampaignAnalysis - Manual trigger for campaign analysis (Admin)
+// ============================================
+export const triggerCampaignAnalysis = onCall({
+    cors: true,
+}, async (request) => {
+    if (!request.auth) {
+        throw new HttpsError('unauthenticated', '로그인이 필요합니다.');
+    }
+
+    // Check admin
+    const userEmail = request.auth.token.email;
+    if (!userEmail || !ADMIN_EMAILS.includes(userEmail)) {
+        throw new HttpsError('permission-denied', '관리자만 접근 가능합니다.');
+    }
+
+    const db = admin.firestore();
+    const { campaignId } = request.data || {};
+
+    try {
+        if (campaignId) {
+            // Analyze specific campaign
+            const campaignDoc = await db.doc(`campaigns/${campaignId}`).get();
+            if (!campaignDoc.exists) {
+                throw new HttpsError('not-found', '캠페인을 찾을 수 없습니다.');
+            }
+
+            const notifications = await generateCampaignNotifications(db, campaignId, campaignDoc.data());
+
+            // Save notifications
+            const campaign = campaignDoc.data()!;
+            for (const notification of notifications) {
+                await db.collection(`advertisers/${campaign.advertiserId}/notifications`).add({
+                    ...notification,
+                    campaignId,
+                    campaignName: campaign.name,
+                    createdAt: admin.firestore.FieldValue.serverTimestamp(),
+                    read: false,
+                    triggeredBy: 'admin',
+                });
+            }
+
+            return {
+                success: true,
+                message: `${notifications.length}개의 알림이 생성되었습니다.`,
+                notifications,
+            };
+        } else {
+            // Analyze all active campaigns
+            const campaignsSnap = await db.collection('campaigns')
+                .where('status', '==', 'active')
+                .limit(50)
+                .get();
+
+            let totalNotifications = 0;
+            for (const doc of campaignsSnap.docs) {
+                const notifications = await generateCampaignNotifications(db, doc.id, doc.data());
+                const campaign = doc.data();
+
+                for (const notification of notifications) {
+                    await db.collection(`advertisers/${campaign.advertiserId}/notifications`).add({
+                        ...notification,
+                        campaignId: doc.id,
+                        campaignName: campaign.name,
+                        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+                        read: false,
+                        triggeredBy: 'admin',
+                    });
+                }
+                totalNotifications += notifications.length;
+            }
+
+            return {
+                success: true,
+                message: `${campaignsSnap.size}개 캠페인 분석 완료, ${totalNotifications}개 알림 생성.`,
+                campaignsAnalyzed: campaignsSnap.size,
+                notificationsGenerated: totalNotifications,
+            };
+        }
+    } catch (error: any) {
+        functions.logger.error('triggerCampaignAnalysis error:', error);
+        throw new HttpsError('internal', error.message);
+    }
+});
+
+
