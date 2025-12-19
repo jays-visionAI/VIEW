@@ -873,6 +873,48 @@
       "artifacts": [
         "VIEWToken"
       ]
+    },
+    "/Users/sangjaeseo/Antigravity/VIEW/contracts/contracts/VIEWStaking.sol": {
+      "lastModificationDate": 1766037083990,
+      "contentHash": "de217cfe4ce5b695eb59c6e31a4d97c0",
+      "sourceName": "contracts/VIEWStaking.sol",
+      "solcConfig": {
+        "version": "0.8.20",
+        "settings": {
+          "optimizer": {
+            "enabled": true,
+            "runs": 200
+          },
+          "evmVersion": "paris",
+          "outputSelection": {
+            "*": {
+              "*": [
+                "abi",
+                "evm.bytecode",
+                "evm.deployedBytecode",
+                "evm.methodIdentifiers",
+                "metadata"
+              ],
+              "": [
+                "ast"
+              ]
+            }
+          }
+        }
+      },
+      "imports": [
+        "@openzeppelin/contracts/token/ERC20/IERC20.sol",
+        "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol",
+        "@openzeppelin/contracts/access/Ownable.sol",
+        "@openzeppelin/contracts/utils/ReentrancyGuard.sol",
+        "@openzeppelin/contracts/utils/Pausable.sol"
+      ],
+      "versionPragmas": [
+        "^0.8.20"
+      ],
+      "artifacts": [
+        "VIEWStaking"
+      ]
     }
   }
 }

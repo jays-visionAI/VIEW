@@ -1666,20 +1666,35 @@ export const getPersona = onCall({
     const db = admin.firestore();
 
     try {
-        const personaDoc = await db.doc(`users/${uid}/persona/current`).get();
+        // Get both persona and user docs
+        const [personaDoc, userDoc] = await Promise.all([
+            db.doc(`users/${uid}/persona/current`).get(),
+            db.doc(`users/${uid}`).get(),
+        ]);
+
+        const userData = userDoc.data() || {};
 
         if (!personaDoc.exists) {
             return {
                 success: true,
                 persona: null,
                 needsCalculation: true,
+                topAttributes: userData.topAttributes || [],
+                attributeScoresCount: userData.attributeScoresCount || 0,
             };
         }
 
+        const personaData = personaDoc.data() || {};
+
         return {
             success: true,
-            persona: personaDoc.data(),
+            persona: personaData,
             needsCalculation: false,
+            // Include user-level attribute data
+            topAttributes: userData.topAttributes || [],
+            attributeScoresCount: userData.attributeScoresCount || 0,
+            attributeScores: personaData.attributeScores || {},
+            attributeScoresUpdatedAt: personaData.attributeScoresUpdatedAt,
         };
     } catch (error: any) {
         functions.logger.error("getPersona error:", error);

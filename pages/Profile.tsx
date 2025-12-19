@@ -139,7 +139,211 @@ const PersonaDashboard: React.FC<{ userData: any; onRefresh: () => void }> = ({ 
         </div>
       </div>
 
-      {/* 2. Persona Collection */}
+      {/* 2. Attribute Scores Section - NEW */}
+      {persona.attributeScores && Object.keys(persona.attributeScores).length > 0 && (
+        <div className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-2">
+              <div className="w-8 h-8 bg-gradient-to-br from-purple-500 to-indigo-600 rounded-lg flex items-center justify-center">
+                <Sparkles size={16} className="text-white" />
+              </div>
+              <div>
+                <h3 className="font-bold text-gray-900 text-sm">나의 속성 프로필</h3>
+                <p className="text-xs text-gray-500">광고 매칭에 활용되는 속성 점수</p>
+              </div>
+            </div>
+            <span className="text-xs text-gray-400">
+              {userData.attributeScoresCount || Object.keys(persona.attributeScores).length}개 속성
+            </span>
+          </div>
+
+          {/* Top Attributes Tags */}
+          {userData.topAttributes && userData.topAttributes.length > 0 && (
+            <div className="mb-4">
+              <p className="text-xs text-gray-500 mb-2">Top 속성</p>
+              <div className="flex flex-wrap gap-1.5">
+                {userData.topAttributes.slice(0, 5).map((attr: string, i: number) => {
+                  const [type, value] = attr.split('.');
+                  const colors = [
+                    'bg-purple-100 text-purple-700',
+                    'bg-blue-100 text-blue-700',
+                    'bg-green-100 text-green-700',
+                    'bg-orange-100 text-orange-700',
+                    'bg-pink-100 text-pink-700',
+                  ];
+                  return (
+                    <span key={attr} className={`px-2.5 py-1 rounded-full text-xs font-medium ${colors[i]}`}>
+                      {value?.replace(/_/g, ' ') || attr}
+                    </span>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* Attribute Categories */}
+          <div className="space-y-3">
+            {/* Price Positioning */}
+            {Object.entries(persona.attributeScores)
+              .filter(([key]) => key.startsWith('Price_Positioning'))
+              .length > 0 && (
+                <div className="bg-purple-50 rounded-xl p-3">
+                  <p className="text-xs font-medium text-purple-700 mb-2">💰 가격 포지셔닝</p>
+                  <div className="space-y-2">
+                    {Object.entries(persona.attributeScores)
+                      .filter(([key]) => key.startsWith('Price_Positioning'))
+                      .map(([key, score]) => {
+                        const value = key.split('.')[1];
+                        return (
+                          <div key={key} className="flex items-center gap-2">
+                            <span className="text-xs text-gray-600 w-16">{value?.replace(/_/g, ' ')}</span>
+                            <div className="flex-1 h-2 bg-purple-100 rounded-full overflow-hidden">
+                              <div
+                                className="h-full bg-gradient-to-r from-purple-400 to-purple-600 rounded-full"
+                                style={{ width: `${(score as number) * 100}%` }}
+                              />
+                            </div>
+                            <span className="text-xs text-purple-600 font-medium w-10">
+                              {Math.round((score as number) * 100)}%
+                            </span>
+                          </div>
+                        );
+                      })}
+                  </div>
+                </div>
+              )}
+
+            {/* Sustainability */}
+            {Object.entries(persona.attributeScores)
+              .filter(([key]) => key.startsWith('Sustainability'))
+              .length > 0 && (
+                <div className="bg-green-50 rounded-xl p-3">
+                  <p className="text-xs font-medium text-green-700 mb-2">🌱 지속가능성</p>
+                  <div className="space-y-2">
+                    {Object.entries(persona.attributeScores)
+                      .filter(([key]) => key.startsWith('Sustainability'))
+                      .map(([key, score]) => {
+                        const value = key.split('.')[1];
+                        return (
+                          <div key={key} className="flex items-center gap-2">
+                            <span className="text-xs text-gray-600 w-16">{value?.replace(/_/g, ' ')}</span>
+                            <div className="flex-1 h-2 bg-green-100 rounded-full overflow-hidden">
+                              <div
+                                className="h-full bg-gradient-to-r from-green-400 to-green-600 rounded-full"
+                                style={{ width: `${(score as number) * 100}%` }}
+                              />
+                            </div>
+                            <span className="text-xs text-green-600 font-medium w-10">
+                              {Math.round((score as number) * 100)}%
+                            </span>
+                          </div>
+                        );
+                      })}
+                  </div>
+                </div>
+              )}
+
+            {/* Channel Preference */}
+            {Object.entries(persona.attributeScores)
+              .filter(([key]) => key.startsWith('Channel_Preference'))
+              .length > 0 && (
+                <div className="bg-blue-50 rounded-xl p-3">
+                  <p className="text-xs font-medium text-blue-700 mb-2">📱 채널 선호</p>
+                  <div className="space-y-2">
+                    {Object.entries(persona.attributeScores)
+                      .filter(([key]) => key.startsWith('Channel_Preference'))
+                      .map(([key, score]) => {
+                        const value = key.split('.')[1];
+                        return (
+                          <div key={key} className="flex items-center gap-2">
+                            <span className="text-xs text-gray-600 w-16">{value?.replace(/_/g, ' ')}</span>
+                            <div className="flex-1 h-2 bg-blue-100 rounded-full overflow-hidden">
+                              <div
+                                className="h-full bg-gradient-to-r from-blue-400 to-blue-600 rounded-full"
+                                style={{ width: `${(score as number) * 100}%` }}
+                              />
+                            </div>
+                            <span className="text-xs text-blue-600 font-medium w-10">
+                              {Math.round((score as number) * 100)}%
+                            </span>
+                          </div>
+                        );
+                      })}
+                  </div>
+                </div>
+              )}
+
+            {/* Purchase Decision Style */}
+            {Object.entries(persona.attributeScores)
+              .filter(([key]) => key.startsWith('Purchase_Decision_Style'))
+              .length > 0 && (
+                <div className="bg-orange-50 rounded-xl p-3">
+                  <p className="text-xs font-medium text-orange-700 mb-2">🛒 구매 스타일</p>
+                  <div className="space-y-2">
+                    {Object.entries(persona.attributeScores)
+                      .filter(([key]) => key.startsWith('Purchase_Decision_Style'))
+                      .map(([key, score]) => {
+                        const value = key.split('.')[1];
+                        return (
+                          <div key={key} className="flex items-center gap-2">
+                            <span className="text-xs text-gray-600 w-16">{value?.replace(/_/g, ' ')}</span>
+                            <div className="flex-1 h-2 bg-orange-100 rounded-full overflow-hidden">
+                              <div
+                                className="h-full bg-gradient-to-r from-orange-400 to-orange-600 rounded-full"
+                                style={{ width: `${(score as number) * 100}%` }}
+                              />
+                            </div>
+                            <span className="text-xs text-orange-600 font-medium w-10">
+                              {Math.round((score as number) * 100)}%
+                            </span>
+                          </div>
+                        );
+                      })}
+                  </div>
+                </div>
+              )}
+
+            {/* Business Model */}
+            {Object.entries(persona.attributeScores)
+              .filter(([key]) => key.startsWith('Business_Model'))
+              .length > 0 && (
+                <div className="bg-indigo-50 rounded-xl p-3">
+                  <p className="text-xs font-medium text-indigo-700 mb-2">🏢 비즈니스 모델</p>
+                  <div className="space-y-2">
+                    {Object.entries(persona.attributeScores)
+                      .filter(([key]) => key.startsWith('Business_Model'))
+                      .map(([key, score]) => {
+                        const value = key.split('.')[1];
+                        return (
+                          <div key={key} className="flex items-center gap-2">
+                            <span className="text-xs text-gray-600 w-16">{value?.replace(/_/g, ' ')}</span>
+                            <div className="flex-1 h-2 bg-indigo-100 rounded-full overflow-hidden">
+                              <div
+                                className="h-full bg-gradient-to-r from-indigo-400 to-indigo-600 rounded-full"
+                                style={{ width: `${(score as number) * 100}%` }}
+                              />
+                            </div>
+                            <span className="text-xs text-indigo-600 font-medium w-10">
+                              {Math.round((score as number) * 100)}%
+                            </span>
+                          </div>
+                        );
+                      })}
+                  </div>
+                </div>
+              )}
+          </div>
+
+          {/* Last Updated */}
+          {persona.attributeScoresUpdatedAt && (
+            <p className="text-xs text-gray-400 mt-3 text-center">
+              마지막 업데이트: {new Date(persona.attributeScoresUpdatedAt?.seconds * 1000 || Date.now()).toLocaleDateString('ko-KR')}
+            </p>
+          )}
+        </div>
+      )}
+
+      {/* 3. Persona Collection */}
       <div>
         <h3 className="text-sm font-bold text-gray-900 mb-3 px-1 ml-1 flex items-center justify-between">
           <span>보유 페르소나</span>
@@ -197,14 +401,28 @@ const Profile: React.FC = () => {
       console.log("Persona fetched:", data);
 
       if (data.persona) {
-        setPersonaData({ persona: data.persona });
+        // Merge user-level attributes with persona data
+        const enrichedPersona = {
+          ...data.persona,
+          attributeScores: data.attributeScores || data.persona.attributeScores || {},
+          attributeScoresUpdatedAt: data.attributeScoresUpdatedAt || data.persona.attributeScoresUpdatedAt,
+        };
+        setPersonaData({
+          persona: enrichedPersona,
+          topAttributes: data.topAttributes || [],
+          attributeScoresCount: data.attributeScoresCount || 0,
+        });
       } else if (data.needsCalculation) {
         // Auto calculate if needed
         const calcPersonaFn = httpsCallable(functions, 'calculatePersona');
         const calcResult = await calcPersonaFn();
         const calcData = calcResult.data as any;
         if (calcData.success) {
-          setPersonaData({ persona: calcData.persona });
+          setPersonaData({
+            persona: calcData.persona,
+            topAttributes: calcData.topAttributes || [],
+            attributeScoresCount: calcData.attributeScoresCount || 0,
+          });
         }
       }
     } catch (error) {
