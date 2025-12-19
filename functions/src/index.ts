@@ -3846,3 +3846,471 @@ export const triggerCampaignAnalysis = onCall({
 });
 
 
+// ============================================
+// extractLottoNumbers - Cloud Vision API OCR for Lotto Tickets
+// Extracts numbers row by row (A~E)
+// ============================================
+export const extractLottoNumbers = onCall({
+    cors: true,
+    timeoutSeconds: 60,
+}, async (request) => {
+    if (!request.auth) {
+        throw new HttpsError('unauthenticated', '로그인이 필요합니다.');
+    }
+
+    const { image, useCloudVision = true } = request.data || {};
+
+    if (!image) {
+        throw new HttpsError('invalid-argument', '이미지가 필요합니다.');
+    }
+
+    functions.logger.info('extractLottoNumbers called', { useCloudVision, imageLength: image.length });
+
+    try {
+        let fullText = '';
+        const games: any[] = [];
+
+        if (useCloudVision) {
+            // Use Google Cloud Vision API
+            const vision = require('@google-cloud/vision');
+            const visionClient = new vision.ImageAnnotatorClient();
+
+            // Prepare the image request
+            let imageRequest: any;
+            if (image.startsWith('data:image') || image.startsWith('/9j') || image.length > 1000) {
+                const base64Data = image.replace(/^data:image\/\w+;base64,/, '');
+                imageRequest = { image: { content: base64Data } };
+            } else {
+                imageRequest = { image: { source: { imageUri: image } } };
+            }
+
+            // Call Cloud Vision TEXT_DETECTION
+            const [result] = await visionClient.textDetection(imageRequest);
+            const detections = result.textAnnotations;
+
+            if (detections && detections.length > 0) {
+                fullText = detections[0].description || '';
+            }
+
+            functions.logger.info('Cloud Vision result length', { len: fullText.length });
+        } else {
+            return {
+                success: false,
+                error: 'Cloud Vision disabled',
+            };
+        }
+
+        // --- Parsing Logic for Korean Lotto ---
+        // Expected format per line: "A 자 동 10 23 29 33 37 40"
+        // We ignore "matches" like Auto/Manual and focus on A-E followed by 6 numbers.
+
+        const lines = fullText.split('\n');
+        // Updated Pattern: Find A-E, then ignore non-digit characters until we find 6 numbers
+        const gamePattern = /([A-Ea-e])[^0-9]*(\d{1,2})\s+(\d{1,2})\s+(\d{1,2})\s+(\d{1,2})\s+(\d{1,2})\s+(\d{1,2})/;
+        // Fallback pattern: just find 6 valid lotto numbers in a line
+        const numberPattern = /\b(\d{1,2})\s+(\d{1,2})\s+(\d{1,2})\s+(\d{1,2})\s+(\d{1,2})\s+(\d{1,2})\b/;
+
+        // Track found games to avoid duplicates
+        const foundGames = new Map<number, number[]>();
+
+        for (const line of lines) {
+            // 1. Try exact match with A-E label
+            const matchIndex = line.match(gamePattern);
+            if (matchIndex) {
+                const labelChar = matchIndex[1].toUpperCase();
+                const gameNo = labelChar.charCodeAt(0) - 64; // A=1, B=2, ...
+
+                const numbers = [
+                    parseInt(matchIndex[2]),
+                    parseInt(matchIndex[3]),
+                    parseInt(matchIndex[4]),
+                    parseInt(matchIndex[5]),
+                    parseInt(matchIndex[6]),
+                    parseInt(matchIndex[7])
+                ].sort((a, b) => a - b);
+
+                // Validation: all between 1-45
+                if (numbers.every(n => n >= 1 && n <= 45)) {
+                    foundGames.set(gameNo, numbers);
+                    continue;
+                }
+            }
+        }
+
+        // If we found nothing with labels, try to just find lines with 6 numbers
+        // and assign them A-E sequentially (heuristic)
+        if (foundGames.size === 0) {
+            let autoIndex = 1;
+            for (const line of lines) {
+                // Filter out lines that look like dates or random numbers
+                // Lotto numbers are usually spaced out
+                const matchNum = line.match(numberPattern);
+                if (matchNum) {
+                    const numbers = [
+                        parseInt(matchNum[1]),
+                        parseInt(matchNum[2]),
+                        parseInt(matchNum[3]),
+                        parseInt(matchNum[4]),
+                        parseInt(matchNum[5]),
+                        parseInt(matchNum[6])
+                    ].sort((a, b) => a - b);
+
+                    // Strict validation: must be unique and 1-45
+                    const unique = new Set(numbers);
+                    if (unique.size === 6 && numbers.every(n => n >= 1 && n <= 45)) {
+                        // Check if this is likely a date (e.g. 2024 12 19 ...) -> usually won't match 6 numbers exactly
+                        foundGames.set(autoIndex++, numbers);
+                        if (autoIndex > 5) break;
+                    }
+                }
+            }
+        }
+
+        // Convert Map to Array
+        Array.from(foundGames.entries()).forEach(([gameNo, numbers]) => {
+            games.push({ gameNo, numbers, status: 'pending' });
+        });
+
+        // Legacy support: also return plain numbers for fallback
+        const legcayNumbers = games.length > 0 ? games[0].numbers : [];
+
+        // Determine confidence
+        let confidence = 'none';
+        if (games.length >= 5) confidence = 'high';
+        else if (games.length > 0) confidence = 'medium';
+
+        return {
+            success: true,
+            games: games.sort((a, b) => a.gameNo - b.gameNo),
+            numbers: legcayNumbers,
+            rawText: fullText.substring(0, 200),
+            confidence,
+        };
+
+    } catch (error: any) {
+        functions.logger.error('extractLottoNumbers error:', error);
+
+        if (error.code === 7 || error.message?.includes('PERMISSION_DENIED')) {
+            throw new HttpsError('permission-denied', 'Cloud Vision API가 활성화되지 않았습니다.');
+        }
+
+        throw new HttpsError('internal', `OCR 처리 오류: ${error.message}`);
+    }
+});
+
+
+// ============================================
+// registerLottoTicket - Register scanned ticket
+// Supports 5-game structure
+// ============================================
+export const registerLottoTicket = onCall({
+    cors: true,
+}, async (request) => {
+    if (!request.auth) {
+        throw new HttpsError('unauthenticated', '로그인이 필요합니다.');
+    }
+
+    const uid = request.auth.uid;
+    const { drawRound, games } = request.data;
+    // games: [{ gameNo: 1, numbers: [...] }, ...]
+
+    if (!games || !Array.isArray(games) || games.length === 0) {
+        throw new HttpsError('invalid-argument', '게임 데이터가 없습니다.');
+    }
+
+    const db = admin.firestore();
+    const userRef = db.doc(`users/${uid}`);
+    const costPerGame = 5;
+    const totalCost = games.length * costPerGame;
+
+    try {
+        await db.runTransaction(async (t) => {
+            const userDoc = await t.get(userRef);
+            if (!userDoc.exists) {
+                throw new HttpsError('not-found', '사용자를 찾을 수 없습니다.');
+            }
+
+            const userData = userDoc.data() || {};
+            const currentBalance = userData.balance || 0;
+
+            if (currentBalance < totalCost) {
+                throw new HttpsError('failed-precondition', '잔액이 부족합니다.');
+            }
+
+            // 1. Create LottoTicket
+            const ticketRef = userRef.collection('lottoTickets').doc();
+            const ticketId = ticketRef.id;
+
+            const newTicket = {
+                ticketId,
+                drawRound: drawRound || 1127, // Default if missing
+                drawDate: '2025-??-??', // Placeholder
+                games: games.map((g: any) => ({
+                    gameNo: g.gameNo,
+                    numbers: g.numbers,
+                    status: 'pending'
+                })),
+                status: 'pending',
+                registeredAt: admin.firestore.FieldValue.serverTimestamp(),
+                cost: totalCost
+            };
+
+            t.set(ticketRef, newTicket);
+
+            // 2. Deduct Balance
+            t.update(userRef, {
+                balance: admin.firestore.FieldValue.increment(-totalCost)
+            });
+
+            // 3. Record Transaction
+            const txRef = userRef.collection('transactions').doc();
+            t.set(txRef, {
+                type: 'Jackpot Entry',
+                amount: -totalCost,
+                date: new Date().toISOString(),
+                description: `로또 ${games.length}게임 등록`,
+                createdAt: admin.firestore.FieldValue.serverTimestamp()
+            });
+        });
+
+        return { success: true };
+    } catch (error: any) {
+        functions.logger.error('registerLottoTicket error:', error);
+        throw new HttpsError('internal', error.message);
+    }
+});
+
+
+// ============================================
+// settleLottoRound - Admin function to settle a lotto round
+// Implements Korean Lotto Logic:
+// - Total Prize Pool = 50% of Total Sales
+// - 4th/5th Place: Fixed Prizes (500, 50 VIEW)
+// - 1st/2nd/3rd: Percentage of remaining pool + Rollover from previous round
+// - If no winner, prize rolls over to the next round.
+// ============================================
+export const settleLottoRound = onCall({
+    cors: true,
+    timeoutSeconds: 540,
+}, async (request) => {
+    // 1. Admin Check
+    if (!request.auth || !ADMIN_EMAILS.includes(request.auth.token.email || '')) {
+        throw new HttpsError('permission-denied', 'Admin access required.');
+    }
+
+    const { round, numbers, bonus } = request.data;
+    if (!round || !numbers || !bonus || numbers.length !== 6) {
+        throw new HttpsError('invalid-argument', 'Invalid round data.');
+    }
+
+    const currentRound = parseInt(round);
+    const db = admin.firestore();
+    const winningNumbers = numbers.sort((a: number, b: number) => a - b);
+    const bonusNumber = bonus;
+
+    functions.logger.info(`Settling Lotto Round ${currentRound}`, { winningNumbers, bonusNumber });
+
+    try {
+        // 2. Load Previous Carryover
+        let prevCarryover = { rank1: 0, rank2: 0, rank3: 0 };
+        const roundDocRef = db.collection('lottoRounds').doc(String(currentRound));
+        const roundDoc = await roundDocRef.get();
+        if (roundDoc.exists) {
+            const data = roundDoc.data();
+            if (data?.carryoverFromPrevious) {
+                prevCarryover = data.carryoverFromPrevious;
+            }
+        }
+
+        // 3. Fetch all tickets
+        const ticketsQuery = db.collectionGroup('lottoTickets')
+            .where('drawRound', '==', currentRound)
+            .where('status', '==', 'pending');
+
+        const snapshot = await ticketsQuery.get();
+        if (snapshot.empty) {
+            // Even if empty, we might need to carry over the 'prevCarryover' to next round
+            if (prevCarryover.rank1 > 0 || prevCarryover.rank2 > 0 || prevCarryover.rank3 > 0) {
+                await db.collection('lottoRounds').doc(String(currentRound + 1)).set({
+                    carryoverFromPrevious: prevCarryover,
+                    createdAt: admin.firestore.FieldValue.serverTimestamp()
+                }, { merge: true });
+            }
+            return { message: 'No tickets found. Carryover updated.' };
+        }
+
+        // 4. Analyze Results
+        const ticketResults: any[] = [];
+        const costPerTicket = 5; // VIEW
+        let totalSales = 0;
+
+        // Winner Counts
+        const winners = { rank1: 0, rank2: 0, rank3: 0, rank4: 0, rank5: 0 };
+
+        for (const doc of snapshot.docs) {
+            const ticketData = doc.data();
+            const games = ticketData.games || [];
+
+            // Assuming cost was paid when registered. We calculate total sales based on valid games.
+            // ticketData.cost could be used, or just count games.
+            // Let's count games for accuracy.
+            totalSales += (games.length * costPerTicket);
+
+            const processedGames = games.map((game: any) => {
+                const myNumbers = game.numbers || [];
+                const matchCount = myNumbers.filter((n: number) => winningNumbers.includes(n)).length;
+                const isBonusMatch = myNumbers.includes(bonusNumber);
+
+                let rank = 0;
+                // Korean Lotto Ranks
+                if (matchCount === 6) rank = 1;
+                else if (matchCount === 5 && isBonusMatch) rank = 2;
+                else if (matchCount === 5) rank = 3;
+                else if (matchCount === 4) rank = 4;
+                else if (matchCount === 3) rank = 5;
+
+                if (rank === 1) winners.rank1++;
+                if (rank === 2) winners.rank2++;
+                if (rank === 3) winners.rank3++;
+                if (rank === 4) winners.rank4++;
+                if (rank === 5) winners.rank5++;
+
+                return { ...game, rank, matchCount };
+            });
+
+            ticketResults.push({ ref: doc.ref, games: processedGames, uid: ticketData.uid }); // uid might be in parent path
+        }
+
+        // 5. Calculate Prize Pools
+        const totalPrizePool = totalSales * 0.5; // 50% payout rule
+
+        // Fixed Prizes
+        const prizeRank4 = 500;
+        const prizeRank5 = 50;
+        const fixedPrizeTotal = (winners.rank4 * prizeRank4) + (winners.rank5 * prizeRank5);
+
+        // Net Pool for 1-3 Ranks
+        let netPool = totalPrizePool - fixedPrizeTotal;
+        if (netPool < 0) netPool = 0; // Should not happen in large scale, but possible in small scale
+
+        // Distribution Ratio: 1st(75%), 2nd(12.5%), 3rd(12.5%)
+        const rawPoolRank1 = netPool * 0.75;
+        const rawPoolRank2 = netPool * 0.125;
+        const rawPoolRank3 = netPool * 0.125;
+
+        // Final Pools (Include Carryover)
+        const totalPoolRank1 = rawPoolRank1 + (prevCarryover.rank1 || 0);
+        const totalPoolRank2 = rawPoolRank2 + (prevCarryover.rank2 || 0);
+        const totalPoolRank3 = rawPoolRank3 + (prevCarryover.rank3 || 0);
+
+        // Determine Prize Per Winner & Next Carryover
+        const nextCarryover = { rank1: 0, rank2: 0, rank3: 0 };
+
+        const prizePerWinner = {
+            rank1: winners.rank1 > 0 ? Math.floor(totalPoolRank1 / winners.rank1) : 0,
+            rank2: winners.rank2 > 0 ? Math.floor(totalPoolRank2 / winners.rank2) : 0,
+            rank3: winners.rank3 > 0 ? Math.floor(totalPoolRank3 / winners.rank3) : 0,
+            rank4: prizeRank4,
+            rank5: prizeRank5
+        };
+
+        if (winners.rank1 === 0) nextCarryover.rank1 = totalPoolRank1;
+        if (winners.rank2 === 0) nextCarryover.rank2 = totalPoolRank2;
+        if (winners.rank3 === 0) nextCarryover.rank3 = totalPoolRank3;
+
+        functions.logger.info(`Prize Calculation`, {
+            totalSales, totalPrizePool, fixedPrizeTotal, netPool,
+            prevCarryover, totalPoolRank1, winners, prizePerWinner, nextCarryover
+        });
+
+        // 6. Execute Updates (Tickets, Users, Batches)
+        const batch = db.batch();
+        let operationCount = 0;
+
+        // Update Tickets & Distribute Rewards
+        for (const ticket of ticketResults) {
+            const { ref, games } = ticket;
+            let ticketTotalPrize = 0;
+            let ticketWon = false;
+
+            const finalGames = games.map((game: any) => {
+                const r = game.rank;
+                let p = 0;
+                if (r === 1) p = prizePerWinner.rank1;
+                else if (r === 2) p = prizePerWinner.rank2;
+                else if (r === 3) p = prizePerWinner.rank3;
+                else if (r === 4) p = prizePerWinner.rank4;
+                else if (r === 5) p = prizePerWinner.rank5;
+
+                if (r > 0) {
+                    ticketTotalPrize += p;
+                    ticketWon = true;
+                }
+
+                return { ...game, status: r > 0 ? 'won' : 'lost', prize: p };
+            });
+
+            batch.update(ref, {
+                status: ticketWon ? 'won' : 'lost',
+                games: finalGames,
+                totalPrize: ticketTotalPrize,
+                settledAt: admin.firestore.FieldValue.serverTimestamp()
+            });
+            operationCount++;
+
+            if (ticketWon && ticketTotalPrize > 0) {
+                const userRef = ref.parent.parent;
+                if (userRef) {
+                    batch.update(userRef, {
+                        balance: admin.firestore.FieldValue.increment(ticketTotalPrize)
+                    });
+
+                    const txRef = userRef.collection('transactions').doc();
+                    batch.set(txRef, {
+                        type: 'Jackpot Win',
+                        amount: ticketTotalPrize,
+                        date: new Date().toISOString(),
+                        description: `로또 ${currentRound}회 당첨`,
+                        createdAt: admin.firestore.FieldValue.serverTimestamp()
+                    });
+                    operationCount += 2;
+                }
+            }
+        }
+
+        // 7. Save Next Carryover & Round Result
+        const nextRoundDoc = db.collection('lottoRounds').doc(String(currentRound + 1));
+        batch.set(nextRoundDoc, {
+            carryoverFromPrevious: nextCarryover,
+            createdAt: admin.firestore.FieldValue.serverTimestamp()
+        }, { merge: true });
+
+        // Save current round summary
+        batch.set(roundDocRef, {
+            winningNumbers,
+            bonusNumber,
+            totalSales,
+            winners,
+            prizePerWinner,
+            totalDistributed: totalSales * 0.5 - Object.values(nextCarryover).reduce((a, b) => a + b, 0), // Approx
+            netCarryover: nextCarryover,
+            settledAt: admin.firestore.FieldValue.serverTimestamp()
+        }, { merge: true });
+
+        operationCount += 2;
+
+        await batch.commit();
+
+        return {
+            success: true,
+            processed: snapshot.size,
+            winners,
+            prizePerWinner,
+            carriedOver: nextCarryover
+        };
+
+    } catch (error: any) {
+        functions.logger.error('settleLottoRound error:', error);
+        throw new HttpsError('internal', error.message);
+    }
+});

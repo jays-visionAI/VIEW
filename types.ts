@@ -23,6 +23,57 @@ export interface JackpotEntry {
   potentialReward?: number;
 }
 
+// ============================================
+// 로또 시스템 - 5게임 지원 구조
+// ============================================
+
+export interface LottoGame {
+  gameNo: number;              // 게임 번호 (1~5, A~E에 해당)
+  numbers: number[];           // 6개 번호 (1~45)
+  status: 'pending' | 'won' | 'lost';
+  matchCount?: number;         // 몇 개 일치
+  bonusMatch?: boolean;        // 보너스 번호 일치 여부
+  rank?: number;               // 등위 (1~5등, 0=미당첨)
+  prize?: number;              // 당첨금
+}
+
+export interface LottoTicket {
+  id: string;
+  ticketId: string;            // 티켓 고유번호 (자동생성)
+  drawRound: number;           // 로또 회차
+  drawDate: string;            // 추첨일 (YYYY-MM-DD)
+  games: LottoGame[];          // 1~5개 게임
+  status: 'pending' | 'checked' | 'won' | 'lost';
+  registeredAt: any;           // Firestore Timestamp
+  cost: number;                // 등록 비용 (VIEW)
+  totalPrize?: number;         // 총 당첨금
+}
+
+export interface LottoRound {
+  roundNumber: number;         // 회차 번호
+  drawDate: string;            // 추첨일
+  winningNumbers: number[];    // 당첨 번호 6개
+  bonusNumber: number;         // 보너스 번호
+  status: 'pending' | 'drawn' | 'announced' | 'distributed';
+  prizePool: {
+    total: number;
+    rank1: number;
+    rank2: number;
+    rank3: number;
+    rank4: number;
+    rank5: number;
+  };
+  participantCount: number;
+  winners: {
+    rank1: number;
+    rank2: number;
+    rank3: number;
+    rank4: number;
+    rank5: number;
+  };
+}
+
+
 export interface Mission {
   id: string;
   title: string;
@@ -101,7 +152,8 @@ export interface UserState {
   pending: number;   // Added
   invited: number;   // Added
   todayEarnings: number;
-  tickets: JackpotEntry[];
+  tickets: JackpotEntry[];  // Legacy - BTC Jackpot용
+  lottoTickets: LottoTicket[];  // 새 로또 시스템용
   transactions: Transaction[];
   missions: Mission[];
   predictions: Prediction[];

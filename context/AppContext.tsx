@@ -53,6 +53,7 @@ export const AppProvider: React.FC<PropsWithChildren<{}>> = ({ children }) => {
     invited: 0,
     todayEarnings: 0,
     tickets: [],
+    lottoTickets: [],
     transactions: [],
     missions: MOCK_MISSIONS,
     predictions: [],

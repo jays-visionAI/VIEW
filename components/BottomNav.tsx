@@ -9,7 +9,7 @@ const BottomNav: React.FC = () => {
   const navItems = [
     { id: Tab.Home, icon: Home, label: '홈' },
     { id: Tab.Ad, icon: PlaySquare, label: '광고' },
-    { id: Tab.Jackpot, icon: Ticket, label: '잭팟' },
+    { id: Tab.Jackpot, icon: Ticket, label: '로또' },
     { id: Tab.Reward, icon: Trophy, label: '보상' },
     { id: Tab.Profile, icon: User, label: '나' },
   ];
@@ -17,7 +17,7 @@ const BottomNav: React.FC = () => {
   // Determine if we need a dark or light style nav based on the active tab context
   // For Ad tab (video), we might want a different style, but for consistency we use the glass bar.
   // The bar sits on top of content.
-  
+
   return (
     <div className="fixed bottom-0 left-0 right-0 z-50 px-4 pb-safe pt-2 pointer-events-none">
       <div className="max-w-md mx-auto pointer-events-auto">
@@ -32,14 +32,14 @@ const BottomNav: React.FC = () => {
                 className="relative flex-1 flex flex-col items-center justify-center group"
               >
                 <div className={`relative p-2 rounded-2xl transition-all duration-300 ease-out ${isActive ? 'bg-brand-50' : 'bg-transparent'}`}>
-                   <item.icon 
-                      size={24} 
-                      strokeWidth={isActive ? 2.5 : 2} 
-                      className={`transition-colors duration-300 ${isActive ? 'text-brand-600' : 'text-gray-400 group-hover:text-gray-600'}`} 
-                   />
-                   {isActive && (
-                     <span className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-1 h-1 bg-brand-600 rounded-full"></span>
-                   )}
+                  <item.icon
+                    size={24}
+                    strokeWidth={isActive ? 2.5 : 2}
+                    className={`transition-colors duration-300 ${isActive ? 'text-brand-600' : 'text-gray-400 group-hover:text-gray-600'}`}
+                  />
+                  {isActive && (
+                    <span className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-1 h-1 bg-brand-600 rounded-full"></span>
+                  )}
                 </div>
                 <span className={`text-[10px] font-medium mt-1 transition-colors duration-300 ${isActive ? 'text-brand-900' : 'text-gray-400'}`}>
                   {item.label}
