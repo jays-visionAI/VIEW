@@ -45,6 +45,9 @@ export const AdminPage: React.FC = () => {
     const [taxonomyMessage, setTaxonomyMessage] = useState<string | null>(null);
     const [isUploadingSurveys, setIsUploadingSurveys] = useState(false);
     const [surveysMessage, setSurveysMessage] = useState<string | null>(null);
+    // Added for viewing surveys
+    const [surveysData, setSurveysData] = useState<any[] | null>(null);
+    const [isLoadingSurveysData, setIsLoadingSurveysData] = useState(false);
 
     // Users tab state
     const [users, setUsers] = useState<UserData[]>([]);
@@ -118,6 +121,19 @@ export const AdminPage: React.FC = () => {
                         }
                     } catch (e) {
                         console.error('Failed to check admin status:', e);
+                    }
+                }
+
+                // Check User Role directly in 'users' collection
+                if (!isAdminUser && db) {
+                    try {
+                        const userDocRef = doc(db, 'users', user.uid);
+                        const userSnap = await getDoc(userDocRef);
+                        if (userSnap.exists() && userSnap.data()?.role === 'admin') {
+                            isAdminUser = true;
+                        }
+                    } catch (e) {
+                        console.error('Failed to check user role:', e);
                     }
                 }
 
@@ -374,25 +390,43 @@ export const AdminPage: React.FC = () => {
 
     // Surveys Upload Handler
     const handleUploadSurveys = async () => {
-        if (!functions) return;
         setIsUploadingSurveys(true);
         setSurveysMessage(null);
         try {
             const uploadSurveys = httpsCallable(functions, 'uploadSurveys');
-            const result = await uploadSurveys({});
-            const data = result.data as any;
-
-            if (data.success) {
-                setSurveysMessage(`✅ ${data.message}`);
-            } else {
-                setSurveysMessage(`❌ 업로드 실패`);
+            const result: any = await uploadSurveys();
+            if (result.data.success) {
+                setSurveysMessage(`✅ 업로드 성공: ${result.data.count}개 문항`);
+                // Reload if already viewing
+                if (surveysData) handleLoadSurveys();
             }
         } catch (error: any) {
-            setSurveysMessage(`오류: ${error.message}`);
+            console.error('Upload failed:', error);
+            setSurveysMessage('❌ 업로드 실패: ' + error.message);
+        } finally {
+            setIsUploadingSurveys(false);
         }
-        setIsUploadingSurveys(false);
-        setTimeout(() => setSurveysMessage(null), 10000);
     };
+
+    const handleLoadSurveys = async () => {
+        setIsLoadingSurveysData(true);
+        try {
+            // Ensure functions is initialized
+            if (!functions) throw new Error("Firebase Functions not initialized");
+
+            const getSurveysFn = httpsCallable(functions, 'getSurveys');
+            const result: any = await getSurveysFn();
+            if (result.data.success) {
+                setSurveysData(result.data.surveys);
+            }
+        } catch (e: any) {
+            console.error("Failed to load surveys:", e);
+            setSurveysMessage('❌ 목록 로드 실패: ' + e.message);
+        } finally {
+            setIsLoadingSurveysData(false);
+        }
+    };
+    setTimeout(() => setSurveysMessage(null), 10000);
 
     const addBoosterTier = () => {
         setStakingForm(prev => ({
@@ -1216,10 +1250,14 @@ export const AdminPage: React.FC = () => {
                                         </div>
                                     </div>
 
-                                    <div className="flex items-center justify-between">
-                                        <p className="text-sm text-gray-600">
-                                            Firestore <code className="bg-white px-2 py-0.5 rounded text-xs">/surveys/*</code>에 업로드
-                                        </p>
+                                    <div className="flex items-center gap-2">
+                                        <button
+                                            onClick={handleLoadSurveys}
+                                            disabled={isLoadingSurveysData}
+                                            className="px-4 py-2.5 bg-white border border-gray-300 text-gray-700 font-medium rounded-xl hover:bg-gray-50 disabled:opacity-50 transition-all text-sm"
+                                        >
+                                            {isLoadingSurveysData ? <Loader2 size={16} className="animate-spin" /> : '목록 보기'}
+                                        </button>
                                         <button
                                             onClick={handleUploadSurveys}
                                             disabled={isUploadingSurveys}
@@ -1237,6 +1275,41 @@ export const AdminPage: React.FC = () => {
                                         <p className={`text-sm mt-3 font-medium ${surveysMessage.includes('✅') ? 'text-blue-600' : 'text-red-500'}`}>
                                             {surveysMessage}
                                         </p>
+                                    )}
+
+                                    {/* Survey List View */}
+                                    {surveysData && (
+                                        <div className="mt-6 border-t border-blue-200 pt-6">
+                                            <h4 className="text-md font-bold text-gray-800 mb-4">설문 문항 목록 ({surveysData.length}개 카테고리)</h4>
+                                            <div className="space-y-4">
+                                                {surveysData.map((survey: any) => (
+                                                    <div key={survey.id} className="bg-white rounded-xl p-4 shadow-sm">
+                                                        <div className="flex justify-between items-start mb-2">
+                                                            <h5 className="font-bold text-blue-600">{survey.title} ({survey.id})</h5>
+                                                            <span className="text-xs bg-gray-100 px-2 py-1 rounded text-gray-500">순서: {survey.order}</span>
+                                                        </div>
+                                                        <p className="text-sm text-gray-600 mb-3">{survey.description}</p>
+
+                                                        <div className="space-y-2">
+                                                            {survey.questions?.map((q: any) => (
+                                                                <div key={q.id} className="text-sm border-l-2 border-gray-200 pl-3">
+                                                                    <p className="font-medium text-gray-800">Q. {q.text}</p>
+                                                                    <p className="text-xs text-gray-500 mt-1">
+                                                                        Type: {q.type} | Options: {q.options?.length || 0}
+                                                                    </p>
+                                                                </div>
+                                                            ))}
+                                                        </div>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                            <button
+                                                onClick={() => setSurveysData(null)}
+                                                className="mt-4 text-sm text-gray-500 underline"
+                                            >
+                                                닫기
+                                            </button>
+                                        </div>
                                     )}
                                 </div>
                             </div>
@@ -1358,7 +1431,7 @@ export const AdminPage: React.FC = () => {
                     </div>
                 </div>
             </div>
-        </div>
+        </div >
     );
 };
 

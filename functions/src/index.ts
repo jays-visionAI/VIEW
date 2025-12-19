@@ -3901,66 +3901,59 @@ export const extractLottoNumbers = onCall({
         }
 
         // --- Parsing Logic for Korean Lotto ---
-        // Expected format per line: "A 자 동 10 23 29 33 37 40"
-        // We ignore "matches" like Auto/Manual and focus on A-E followed by 6 numbers.
+        // Robust Pattern Matching using global regex on fullText
+        // 1. Try to find games with A-E labels first
+        // Pattern: [A-E] (optional: Auto/Manual) Num Num Num Num Num Num
+        const labeledPattern = /(?:^|\s)([A-Ea-e])\s*(?:자\s*동|수\s*동|반\s*자\s*동|[^0-9\n]*)?\s*(\d{1,2})\s+(\d{1,2})\s+(\d{1,2})\s+(\d{1,2})\s+(\d{1,2})\s+(\d{1,2})/gm;
 
-        const lines = fullText.split('\n');
-        // Updated Pattern: Find A-E, then ignore non-digit characters until we find 6 numbers
-        const gamePattern = /([A-Ea-e])[^0-9]*(\d{1,2})\s+(\d{1,2})\s+(\d{1,2})\s+(\d{1,2})\s+(\d{1,2})\s+(\d{1,2})/;
-        // Fallback pattern: just find 6 valid lotto numbers in a line
-        const numberPattern = /\b(\d{1,2})\s+(\d{1,2})\s+(\d{1,2})\s+(\d{1,2})\s+(\d{1,2})\s+(\d{1,2})\b/;
+        // 2. Fallback: just find 6 numbers
+        const fallbackPattern = /(?:^|\s)(\d{1,2})\s+(\d{1,2})\s+(\d{1,2})\s+(\d{1,2})\s+(\d{1,2})\s+(\d{1,2})(?:\s|$)/gm;
 
-        // Track found games to avoid duplicates
         const foundGames = new Map<number, number[]>();
+        let match;
 
-        for (const line of lines) {
-            // 1. Try exact match with A-E label
-            const matchIndex = line.match(gamePattern);
-            if (matchIndex) {
-                const labelChar = matchIndex[1].toUpperCase();
-                const gameNo = labelChar.charCodeAt(0) - 64; // A=1, B=2, ...
+        // Strategy 1: Search for Labeled Games (A-E)
+        while ((match = labeledPattern.exec(fullText)) !== null) {
+            const labelChar = match[1].toUpperCase();
+            const gameNo = labelChar.charCodeAt(0) - 64; // A=1
 
-                const numbers = [
-                    parseInt(matchIndex[2]),
-                    parseInt(matchIndex[3]),
-                    parseInt(matchIndex[4]),
-                    parseInt(matchIndex[5]),
-                    parseInt(matchIndex[6]),
-                    parseInt(matchIndex[7])
-                ].sort((a, b) => a - b);
+            const numbers = [
+                parseInt(match[2]), parseInt(match[3]), parseInt(match[4]),
+                parseInt(match[5]), parseInt(match[6]), parseInt(match[7])
+            ].sort((a, b) => a - b);
 
-                // Validation: all between 1-45
-                if (numbers.every(n => n >= 1 && n <= 45)) {
-                    foundGames.set(gameNo, numbers);
-                    continue;
-                }
+            if (numbers.every(n => n >= 1 && n <= 45)) {
+                foundGames.set(gameNo, numbers);
             }
         }
 
-        // If we found nothing with labels, try to just find lines with 6 numbers
-        // and assign them A-E sequentially (heuristic)
-        if (foundGames.size === 0) {
+        // Strategy 2: If we missed some games, try fallback
+        // Only if we found FEWER than 5 games and the text has more potential
+        if (foundGames.size < 5) {
             let autoIndex = 1;
-            for (const line of lines) {
-                // Filter out lines that look like dates or random numbers
-                // Lotto numbers are usually spaced out
-                const matchNum = line.match(numberPattern);
-                if (matchNum) {
-                    const numbers = [
-                        parseInt(matchNum[1]),
-                        parseInt(matchNum[2]),
-                        parseInt(matchNum[3]),
-                        parseInt(matchNum[4]),
-                        parseInt(matchNum[5]),
-                        parseInt(matchNum[6])
-                    ].sort((a, b) => a - b);
+            while ((match = fallbackPattern.exec(fullText)) !== null) {
+                // Skip if this index is already filled by a labeled game
+                while (foundGames.has(autoIndex)) {
+                    autoIndex++;
+                }
+                if (autoIndex > 5) break;
 
-                    // Strict validation: must be unique and 1-45
-                    const unique = new Set(numbers);
-                    if (unique.size === 6 && numbers.every(n => n >= 1 && n <= 45)) {
-                        // Check if this is likely a date (e.g. 2024 12 19 ...) -> usually won't match 6 numbers exactly
-                        foundGames.set(autoIndex++, numbers);
-                        if (autoIndex > 5) break;
+                const numbers = [
+                    parseInt(match[1]), parseInt(match[2]), parseInt(match[3]),
+                    parseInt(match[4]), parseInt(match[5]), parseInt(match[6])
+                ].sort((a, b) => a - b);
+
+                // Strict validation
+                const unique = new Set(numbers);
+                if (unique.size === 6 && numbers.every(n => n >= 1 && n <= 45)) {
+                    // Heuristic: Check if this set of numbers is NOT already in foundGames (to avoid dupes)
+                    const isDuplicate = Array.from(foundGames.values()).some(existing =>
+                        existing.every((val, index) => val === numbers[index])
+                    );
+
+                    if (!isDuplicate) {
+                        foundGames.set(autoIndex, numbers);
+                        autoIndex++;
                     }
                 }
             }
@@ -3971,10 +3964,10 @@ export const extractLottoNumbers = onCall({
             games.push({ gameNo, numbers, status: 'pending' });
         });
 
-        // Legacy support: also return plain numbers for fallback
+        // Legacy support
         const legcayNumbers = games.length > 0 ? games[0].numbers : [];
 
-        // Determine confidence
+        // Confidence Check
         let confidence = 'none';
         if (games.length >= 5) confidence = 'high';
         else if (games.length > 0) confidence = 'medium';
@@ -4094,7 +4087,20 @@ export const settleLottoRound = onCall({
     timeoutSeconds: 540,
 }, async (request) => {
     // 1. Admin Check
-    if (!request.auth || !ADMIN_EMAILS.includes(request.auth.token.email || '')) {
+    let isAdmin = false;
+    if (request.auth) {
+        if (ADMIN_EMAILS.includes(request.auth.token.email || '')) {
+            isAdmin = true;
+        } else {
+            // Check Firestore role
+            const userSnap = await admin.firestore().doc(`users/${request.auth.uid}`).get();
+            if (userSnap.exists && userSnap.data()?.role === 'admin') {
+                isAdmin = true;
+            }
+        }
+    }
+
+    if (!isAdmin) {
         throw new HttpsError('permission-denied', 'Admin access required.');
     }
 

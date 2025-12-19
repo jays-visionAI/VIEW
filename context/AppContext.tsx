@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, ReactNode, PropsWithChildren, useEffect } from 'react';
-import { Tab, UserState, Transaction, JackpotEntry, Mission, ToastMessage, Prediction } from '../types';
+import { Tab, UserState, Transaction, JackpotEntry, Mission, ToastMessage, Prediction, LottoTicket } from '../types';
 import { INITIAL_BALANCE, INITIAL_TRANSACTIONS, MOCK_MISSIONS } from '../constants';
 import { adManager } from '../utils/AdManager';
 
@@ -79,6 +79,7 @@ export const AppProvider: React.FC<PropsWithChildren<{}>> = ({ children }) => {
     let unsubscribeAuth: () => void;
     let unsubscribeUserDoc: () => void;
     let unsubscribeTickets: () => void;
+    let unsubscribeLottoTickets: () => void;
     let unsubscribeTransactions: () => void;
     let unsubscribePredictions: () => void;
 
@@ -207,6 +208,18 @@ export const AppProvider: React.FC<PropsWithChildren<{}>> = ({ children }) => {
             setUserState(prev => ({ ...prev, tickets }));
           });
 
+          // 2.5 Lotto Tickets Subcollection Listener
+          const lottoTicketsRef = collection(db, 'users', user.uid, 'lottoTickets');
+          const lottoTicketsQuery = query(lottoTicketsRef, orderBy('createdAt', 'desc'), limit(50));
+
+          unsubscribeLottoTickets = onSnapshot(lottoTicketsQuery, (snapshot: any) => {
+            const lottoTickets: LottoTicket[] = snapshot.docs.map((doc: any) => ({
+              id: doc.id,
+              ...doc.data()
+            }));
+            setUserState(prev => ({ ...prev, lottoTickets }));
+          });
+
           // 3. Transactions Subcollection Listener
           const txRef = collection(db, 'users', user.uid, 'transactions');
           // Limit to recent 50 for performance
@@ -247,13 +260,16 @@ export const AppProvider: React.FC<PropsWithChildren<{}>> = ({ children }) => {
             invited: 0,
             todayEarnings: 0,
             tickets: [],
+            lottoTickets: [],
             transactions: [],
             missions: MOCK_MISSIONS,
             predictions: [],
           });
           setAuthLoading(false);
           if (unsubscribeUserDoc) unsubscribeUserDoc();
+          if (unsubscribeUserDoc) unsubscribeUserDoc();
           if (unsubscribeTickets) unsubscribeTickets();
+          if (unsubscribeLottoTickets) unsubscribeLottoTickets();
           if (unsubscribeTransactions) unsubscribeTransactions();
           if (unsubscribePredictions) unsubscribePredictions();
         }
@@ -267,6 +283,7 @@ export const AppProvider: React.FC<PropsWithChildren<{}>> = ({ children }) => {
       if (unsubscribeAuth) unsubscribeAuth();
       if (unsubscribeUserDoc) unsubscribeUserDoc();
       if (unsubscribeTickets) unsubscribeTickets();
+      if (unsubscribeLottoTickets) unsubscribeLottoTickets();
       if (unsubscribeTransactions) unsubscribeTransactions();
       if (unsubscribePredictions) unsubscribePredictions();
     };
