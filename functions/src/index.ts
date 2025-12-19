@@ -2965,3 +2965,512 @@ export const batchRecalculateAttributeScores = onCall({
     }
 });
 
+// ============================================
+// getAttributeRecommendations - AI-powered attribute recommendations
+// Analyzes campaign performance and user behavior to suggest optimal attributes
+// ============================================
+export const getAttributeRecommendations = onCall({
+    cors: true,
+}, async (request) => {
+    if (!request.auth) {
+        throw new HttpsError('unauthenticated', '로그인이 필요합니다.');
+    }
+
+    const db = admin.firestore();
+    const { industryPaths, objective, budget, existingCampaignId } = request.data || {};
+
+    try {
+        // 1. Get historical performance data by attribute
+        const attributeStats = await getAttributePerformanceStats(db, industryPaths);
+
+        // 2. Get user distribution by attribute
+        const userDistribution = await getUserAttributeDistribution(db);
+
+        // 3. Generate recommendations based on objective
+        const recommendations = generateRecommendations(
+            attributeStats,
+            userDistribution,
+            objective,
+            budget,
+            industryPaths
+        );
+
+        // 4. If existing campaign, compare with current performance
+        let optimization: any = null;
+        if (existingCampaignId) {
+            optimization = await getCampaignOptimization(db, existingCampaignId, recommendations);
+        }
+
+        functions.logger.info('Attribute recommendations generated', {
+            industryPaths,
+            objective,
+            recommendationCount: recommendations.length
+        });
+
+        return {
+            success: true,
+            recommendations,
+            optimization,
+            stats: {
+                analyzedUsers: userDistribution.totalUsers,
+                topPerformingAttributes: attributeStats.topPerforming.slice(0, 5),
+            }
+        };
+    } catch (error: any) {
+        functions.logger.error('getAttributeRecommendations error:', error);
+        throw new HttpsError('internal', error.message);
+    }
+});
+
+// Helper: Get performance stats by attribute from historical data
+async function getAttributePerformanceStats(
+    db: admin.firestore.Firestore,
+    industryPaths?: string[]
+): Promise<{
+    byAttribute: Record<string, { impressions: number; clicks: number; conversions: number; ctr: number; cvr: number }>;
+    topPerforming: string[];
+}> {
+    // Get campaign impressions data
+    let query: admin.firestore.Query = db.collection('campaignAnalytics')
+        .orderBy('createdAt', 'desc')
+        .limit(1000);
+
+    const analyticsSnap = await query.get();
+
+    const attributePerformance: Record<string, {
+        impressions: number;
+        clicks: number;
+        conversions: number;
+    }> = {};
+
+    // Aggregate performance by attribute
+    for (const doc of analyticsSnap.docs) {
+        const data = doc.data();
+        const attributes = data.attributes || {};
+
+        for (const [type, values] of Object.entries(attributes)) {
+            if (Array.isArray(values)) {
+                for (const value of values) {
+                    const key = `${type}.${value}`;
+                    if (!attributePerformance[key]) {
+                        attributePerformance[key] = { impressions: 0, clicks: 0, conversions: 0 };
+                    }
+                    attributePerformance[key].impressions += data.impressions || 0;
+                    attributePerformance[key].clicks += data.clicks || 0;
+                    attributePerformance[key].conversions += data.conversions || 0;
+                }
+            }
+        }
+    }
+
+    // Calculate rates and rank
+    const byAttribute: Record<string, any> = {};
+    const rankings: { key: string; score: number }[] = [];
+
+    for (const [key, stats] of Object.entries(attributePerformance)) {
+        const ctr = stats.impressions > 0 ? (stats.clicks / stats.impressions) * 100 : 0;
+        const cvr = stats.clicks > 0 ? (stats.conversions / stats.clicks) * 100 : 0;
+
+        byAttribute[key] = {
+            ...stats,
+            ctr: Math.round(ctr * 100) / 100,
+            cvr: Math.round(cvr * 100) / 100,
+        };
+
+        // Score = weighted combination of CVR and volume
+        const score = cvr * 0.7 + Math.log10(stats.conversions + 1) * 0.3;
+        rankings.push({ key, score });
+    }
+
+    // Sort by score descending
+    rankings.sort((a, b) => b.score - a.score);
+    const topPerforming = rankings.map(r => r.key);
+
+    // If no historical data, return default recommendations
+    if (topPerforming.length === 0) {
+        return {
+            byAttribute: {},
+            topPerforming: [
+                'Price_Positioning.Premium',
+                'Channel_Preference.Online_First',
+                'Purchase_Decision_Style.Brand_Loyal',
+                'Sustainability.Eco_Friendly',
+                'Business_Model.DTC',
+            ]
+        };
+    }
+
+    return { byAttribute, topPerforming };
+}
+
+// Helper: Get user distribution by attribute
+async function getUserAttributeDistribution(db: admin.firestore.Firestore): Promise<{
+    totalUsers: number;
+    byAttribute: Record<string, number>;
+}> {
+    // Get users with attribute scores
+    const usersSnap = await db.collection('users')
+        .where('attributeScoresCount', '>', 0)
+        .limit(5000)
+        .get();
+
+    const attributeCounts: Record<string, number> = {};
+    let totalUsers = 0;
+
+    for (const userDoc of usersSnap.docs) {
+        const userData = userDoc.data();
+        const topAttributes = userData.topAttributes || [];
+
+        totalUsers++;
+        for (const attr of topAttributes) {
+            attributeCounts[attr] = (attributeCounts[attr] || 0) + 1;
+        }
+    }
+
+    return {
+        totalUsers,
+        byAttribute: attributeCounts,
+    };
+}
+
+// Helper: Generate recommendations
+function generateRecommendations(
+    attributeStats: { byAttribute: Record<string, any>; topPerforming: string[] },
+    userDistribution: { totalUsers: number; byAttribute: Record<string, number> },
+    objective: string,
+    budget: number,
+    industryPaths?: string[]
+): Array<{
+    attribute: string;
+    type: string;
+    value: string;
+    score: number;
+    reason: string;
+    estimatedReach: number;
+    estimatedCVR: number;
+    priority: 'high' | 'medium' | 'low';
+}> {
+    const recommendations: Array<{
+        attribute: string;
+        type: string;
+        value: string;
+        score: number;
+        reason: string;
+        estimatedReach: number;
+        estimatedCVR: number;
+        priority: 'high' | 'medium' | 'low';
+    }> = [];
+
+    // Define attribute categories and their relevance by objective
+    const objectiveWeights: Record<string, Record<string, number>> = {
+        awareness: {
+            'Channel_Preference': 1.0,
+            'Price_Positioning': 0.7,
+            'Business_Model': 0.8,
+            'Purchase_Decision_Style': 0.6,
+            'Sustainability': 0.7,
+        },
+        conversion: {
+            'Channel_Preference': 0.8,
+            'Price_Positioning': 1.0,
+            'Business_Model': 0.9,
+            'Purchase_Decision_Style': 1.0,
+            'Sustainability': 0.6,
+        },
+    };
+
+    const weights = objectiveWeights[objective] || objectiveWeights['conversion'];
+
+    // Industry-specific attribute recommendations
+    const industryAttributeMap: Record<string, string[]> = {
+        'Fashion': ['Price_Positioning.Premium', 'Sustainability.Eco_Friendly', 'Channel_Preference.Mobile_First'],
+        'Beauty': ['Price_Positioning.Premium', 'Sustainability.Cruelty_Free', 'Purchase_Decision_Style.Trend_Seeker'],
+        'Technology': ['Channel_Preference.Online_First', 'Purchase_Decision_Style.Trend_Seeker', 'Business_Model.DTC'],
+        'Food_Beverage': ['Channel_Preference.Omnichannel', 'Sustainability.Organic', 'Business_Model.Subscription'],
+        'Travel': ['Price_Positioning.Luxury', 'Channel_Preference.Mobile_First', 'Purchase_Decision_Style.Research_Heavy'],
+        'Finance': ['Channel_Preference.Online_First', 'Purchase_Decision_Style.Research_Heavy', 'Business_Model.DTC'],
+        'Health_Wellness': ['Sustainability.Organic', 'Business_Model.Subscription', 'Price_Positioning.Premium'],
+    };
+
+    // Get industry-specific suggestions
+    const industrySuggestions: Set<string> = new Set();
+    if (industryPaths) {
+        for (const path of industryPaths) {
+            const industry = path.split('.')[0];
+            const suggestions = industryAttributeMap[industry] || [];
+            suggestions.forEach(s => industrySuggestions.add(s));
+        }
+    }
+
+    // Combine with top performing from historical data
+    const candidateAttributes = new Set([
+        ...attributeStats.topPerforming.slice(0, 10),
+        ...Array.from(industrySuggestions),
+    ]);
+
+    // Score each candidate
+    for (const attr of candidateAttributes) {
+        const [type, value] = attr.split('.');
+        if (!type || !value) continue;
+
+        const typeWeight = weights[type] || 0.5;
+        const historicalData = attributeStats.byAttribute[attr];
+        const userCount = userDistribution.byAttribute[attr] || 0;
+
+        // Calculate score
+        let score = 50; // Base score
+
+        // Historical performance bonus
+        if (historicalData) {
+            score += historicalData.cvr * 2; // CVR bonus
+            score += Math.min(20, historicalData.conversions * 0.1); // Volume bonus
+        }
+
+        // User availability bonus
+        const reachPercent = userDistribution.totalUsers > 0
+            ? (userCount / userDistribution.totalUsers) * 100
+            : 0;
+        score += Math.min(15, reachPercent * 0.5);
+
+        // Objective alignment bonus
+        score *= typeWeight;
+
+        // Industry relevance bonus
+        if (industrySuggestions.has(attr)) {
+            score *= 1.2;
+        }
+
+        // Generate reason
+        let reason = '';
+        if (historicalData && historicalData.cvr > 10) {
+            reason = `높은 전환율 ${historicalData.cvr.toFixed(1)}% 기록`;
+        } else if (reachPercent > 10) {
+            reason = `${reachPercent.toFixed(0)}% 사용자 도달 가능`;
+        } else if (industrySuggestions.has(attr)) {
+            reason = `선택한 산업에 최적화된 속성`;
+        } else {
+            reason = `${objective === 'conversion' ? '전환' : '인지도'} 목표에 적합`;
+        }
+
+        // Calculate estimated reach
+        const estimatedReach = Math.floor(userCount * (budget / 50000));
+
+        recommendations.push({
+            attribute: attr,
+            type,
+            value,
+            score: Math.round(score),
+            reason,
+            estimatedReach,
+            estimatedCVR: historicalData?.cvr || (objective === 'conversion' ? 12 : 8),
+            priority: score >= 80 ? 'high' : score >= 50 ? 'medium' : 'low',
+        });
+    }
+
+    // Sort by score and return top recommendations
+    recommendations.sort((a, b) => b.score - a.score);
+    return recommendations.slice(0, 8);
+}
+
+// Helper: Get optimization suggestions for existing campaign
+async function getCampaignOptimization(
+    db: admin.firestore.Firestore,
+    campaignId: string,
+    newRecommendations: any[]
+): Promise<{
+    currentPerformance: any;
+    suggestedChanges: any[];
+    potentialImprovement: number;
+}> {
+    const campaignDoc = await db.doc(`campaigns/${campaignId}`).get();
+    if (!campaignDoc.exists) {
+        return { currentPerformance: null, suggestedChanges: [], potentialImprovement: 0 };
+    }
+
+    const campaign = campaignDoc.data()!;
+    const currentAttributes = campaign.attributes || {};
+
+    // Get current campaign analytics
+    const analyticsSnap = await db.collection('campaignAnalytics')
+        .where('campaignId', '==', campaignId)
+        .orderBy('createdAt', 'desc')
+        .limit(7)
+        .get();
+
+    let totalImpressions = 0;
+    let totalClicks = 0;
+    let totalConversions = 0;
+
+    for (const doc of analyticsSnap.docs) {
+        const data = doc.data();
+        totalImpressions += data.impressions || 0;
+        totalClicks += data.clicks || 0;
+        totalConversions += data.conversions || 0;
+    }
+
+    const currentCTR = totalImpressions > 0 ? (totalClicks / totalImpressions) * 100 : 0;
+    const currentCVR = totalClicks > 0 ? (totalConversions / totalClicks) * 100 : 0;
+
+    // Find attributes that could be added for improvement
+    const currentAttrFlat = Object.entries(currentAttributes)
+        .flatMap(([type, values]) => Array.isArray(values) ? values.map((v: string) => `${type}.${v}`) : []);
+
+    const suggestedChanges = newRecommendations
+        .filter(rec => !currentAttrFlat.includes(rec.attribute))
+        .slice(0, 3)
+        .map(rec => ({
+            action: 'add',
+            attribute: rec.attribute,
+            reason: rec.reason,
+            expectedImpact: `+${Math.round(rec.estimatedCVR * 0.3)}% CVR 향상 예상`,
+        }));
+
+    // Calculate potential improvement
+    const avgNewCVR = newRecommendations.slice(0, 3).reduce((sum, r) => sum + r.estimatedCVR, 0) / 3;
+    const potentialImprovement = Math.max(0, Math.round((avgNewCVR - currentCVR) / currentCVR * 100));
+
+    return {
+        currentPerformance: {
+            impressions: totalImpressions,
+            clicks: totalClicks,
+            conversions: totalConversions,
+            ctr: Math.round(currentCTR * 100) / 100,
+            cvr: Math.round(currentCVR * 100) / 100,
+        },
+        suggestedChanges,
+        potentialImprovement,
+    };
+}
+
+// ============================================
+// getAITargetingAssistant - Natural language targeting assistant
+// ============================================
+export const getAITargetingAssistant = onCall({
+    cors: true,
+}, async (request) => {
+    if (!request.auth) {
+        throw new HttpsError('unauthenticated', '로그인이 필요합니다.');
+    }
+
+    const { productDescription, targetAudience, goal } = request.data || {};
+
+    if (!productDescription) {
+        throw new HttpsError('invalid-argument', '제품 설명이 필요합니다.');
+    }
+
+    try {
+        // Simple keyword-based targeting suggestion (can be enhanced with LLM later)
+        const suggestions = generateTargetingSuggestions(productDescription, targetAudience, goal);
+
+        return {
+            success: true,
+            suggestions,
+            message: '타겟팅 제안이 생성되었습니다.',
+        };
+    } catch (error: any) {
+        functions.logger.error('getAITargetingAssistant error:', error);
+        throw new HttpsError('internal', error.message);
+    }
+});
+
+// Helper: Generate targeting suggestions from product description
+function generateTargetingSuggestions(
+    productDescription: string,
+    targetAudience?: string,
+    goal?: string
+): {
+    industries: string[];
+    attributes: Record<string, string[]>;
+    reasoning: string;
+} {
+    const desc = (productDescription + ' ' + (targetAudience || '')).toLowerCase();
+
+    const industries: string[] = [];
+    const attributes: Record<string, string[]> = {};
+
+    // Industry detection
+    if (desc.includes('패션') || desc.includes('의류') || desc.includes('fashion') || desc.includes('apparel')) {
+        industries.push('Fashion.Apparel');
+    }
+    if (desc.includes('뷰티') || desc.includes('화장') || desc.includes('스킨') || desc.includes('beauty')) {
+        industries.push('Beauty.Skincare');
+    }
+    if (desc.includes('tech') || desc.includes('기술') || desc.includes('앱') || desc.includes('소프트웨어')) {
+        industries.push('Technology.Software');
+    }
+    if (desc.includes('음식') || desc.includes('food') || desc.includes('레스토랑') || desc.includes('배달')) {
+        industries.push('Food_Beverage.Restaurant');
+    }
+    if (desc.includes('여행') || desc.includes('travel') || desc.includes('호텔')) {
+        industries.push('Travel.Hotel');
+    }
+    if (desc.includes('금융') || desc.includes('투자') || desc.includes('finance')) {
+        industries.push('Finance.Investment');
+    }
+    if (desc.includes('건강') || desc.includes('헬스') || desc.includes('피트니스')) {
+        industries.push('Health_Wellness.Fitness');
+    }
+
+    // Price positioning detection
+    if (desc.includes('럭셔리') || desc.includes('luxury') || desc.includes('프리미엄') || desc.includes('고급')) {
+        attributes['Price_Positioning'] = ['Luxury', 'Premium'];
+    } else if (desc.includes('가성비') || desc.includes('저렴') || desc.includes('할인')) {
+        attributes['Price_Positioning'] = ['Value', 'Mid'];
+    } else {
+        attributes['Price_Positioning'] = ['Mid', 'Premium'];
+    }
+
+    // Sustainability detection
+    if (desc.includes('친환경') || desc.includes('에코') || desc.includes('지속가능') || desc.includes('유기농')) {
+        attributes['Sustainability'] = ['Eco_Friendly', 'Organic'];
+    }
+    if (desc.includes('비건') || desc.includes('vegan')) {
+        attributes['Sustainability'] = [...(attributes['Sustainability'] || []), 'Vegan'];
+    }
+
+    // Channel preference detection
+    if (desc.includes('온라인') || desc.includes('이커머스') || desc.includes('앱')) {
+        attributes['Channel_Preference'] = ['Online_First', 'Mobile_First'];
+    } else if (desc.includes('오프라인') || desc.includes('매장')) {
+        attributes['Channel_Preference'] = ['Offline_First', 'Omnichannel'];
+    }
+
+    // Business model detection
+    if (desc.includes('구독') || desc.includes('subscription') || desc.includes('멤버십')) {
+        attributes['Business_Model'] = ['Subscription'];
+    }
+    if (desc.includes('DTC') || desc.includes('직접 판매') || desc.includes('자사몰')) {
+        attributes['Business_Model'] = [...(attributes['Business_Model'] || []), 'DTC'];
+    }
+
+    // Target audience detection
+    if (desc.includes('젊은') || desc.includes('MZ') || desc.includes('20대') || desc.includes('트렌드')) {
+        attributes['Purchase_Decision_Style'] = ['Trend_Seeker', 'Impulse'];
+    } else if (desc.includes('프로페셔널') || desc.includes('직장인') || desc.includes('비즈니스')) {
+        attributes['Purchase_Decision_Style'] = ['Research_Heavy', 'Brand_Loyal'];
+    }
+
+    // Default if nothing detected
+    if (industries.length === 0) {
+        industries.push('Technology.Consumer_Electronics');
+    }
+
+    // Generate reasoning
+    const reasons: string[] = [];
+    if (industries.length > 0) {
+        reasons.push(`"${industries.join(', ')}" 산업으로 분류되었습니다.`);
+    }
+    if (attributes['Price_Positioning']) {
+        reasons.push(`가격 포지셔닝: ${attributes['Price_Positioning'].join(', ')}`);
+    }
+    if (attributes['Sustainability']) {
+        reasons.push(`지속가능성 속성이 감지되어 ESG 관련 타겟팅을 추가했습니다.`);
+    }
+
+    return {
+        industries,
+        attributes,
+        reasoning: reasons.join(' ') || '기본 타겟팅 설정을 추천합니다.',
+    };
+}
+
