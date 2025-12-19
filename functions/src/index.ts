@@ -1369,9 +1369,11 @@ export const getSurveys = onCall({
     const db = admin.firestore();
 
     try {
-        // 설문 정의 조회
-        const surveysSnap = await db.collection("surveys").orderBy("order").get();
-        const surveys = surveysSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        // 설문 정의 조회 (정렬은 클라이언트에서)
+        const surveysSnap = await db.collection("surveys").get();
+        const surveys = surveysSnap.docs
+            .map(doc => ({ id: doc.id, ...doc.data() }))
+            .sort((a: any, b: any) => (a.order || 0) - (b.order || 0));
 
         // 유저 응답 조회
         const responsesSnap = await db.collection(`users/${uid}/surveyResponses`).get();
@@ -1557,7 +1559,7 @@ export const calculatePersona = onCall({
                 name: '테크 얼리어답터',
                 level: Math.round(traits.earlyAdopter * 10),
                 icon: '🚀',
-                earnedAt: admin.firestore.FieldValue.serverTimestamp(),
+                earnedAt: new Date().toISOString(),
             });
         }
 
@@ -1567,7 +1569,7 @@ export const calculatePersona = onCall({
                 name: '프리미엄 컨슈머',
                 level: Math.round(traits.purchasingPower * 10),
                 icon: '💎',
-                earnedAt: admin.firestore.FieldValue.serverTimestamp(),
+                earnedAt: new Date().toISOString(),
             });
         }
 
@@ -1577,7 +1579,7 @@ export const calculatePersona = onCall({
                 name: '가성비 헌터',
                 level: Math.round((1 - traits.priceVsBrand) * 10),
                 icon: '🎯',
-                earnedAt: admin.firestore.FieldValue.serverTimestamp(),
+                earnedAt: new Date().toISOString(),
             });
         }
 
@@ -1587,7 +1589,7 @@ export const calculatePersona = onCall({
                 name: '디지털 네이티브',
                 level: Math.round(traits.onlinePreference * 10),
                 icon: '📱',
-                earnedAt: admin.firestore.FieldValue.serverTimestamp(),
+                earnedAt: new Date().toISOString(),
             });
         }
 
@@ -1597,7 +1599,7 @@ export const calculatePersona = onCall({
                 name: '여행 러버',
                 level: Math.round((taxonomyScores['Travel'] || 0.5) * 10),
                 icon: '✈️',
-                earnedAt: admin.firestore.FieldValue.serverTimestamp(),
+                earnedAt: new Date().toISOString(),
             });
         }
 
@@ -1608,7 +1610,7 @@ export const calculatePersona = onCall({
                 name: '라이징 스타',
                 level: 1,
                 icon: '⭐',
-                earnedAt: admin.firestore.FieldValue.serverTimestamp(),
+                earnedAt: new Date().toISOString(),
             });
         }
 

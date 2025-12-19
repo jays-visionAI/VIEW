@@ -1285,17 +1285,17 @@ export const AdminPage: React.FC = () => {
                                                 {surveysData.map((survey: any) => (
                                                     <div key={survey.id} className="bg-white rounded-xl p-4 shadow-sm">
                                                         <div className="flex justify-between items-start mb-2">
-                                                            <h5 className="font-bold text-blue-600">{survey.title} ({survey.id})</h5>
+                                                            <h5 className="font-bold text-blue-600">{survey.categoryNameKo || survey.id} ({survey.id})</h5>
                                                             <span className="text-xs bg-gray-100 px-2 py-1 rounded text-gray-500">순서: {survey.order}</span>
                                                         </div>
-                                                        <p className="text-sm text-gray-600 mb-3">{survey.description}</p>
+                                                        <p className="text-sm text-gray-600 mb-3">카테고리: {survey.category} | 문항수: {survey.questions?.length || 0}개</p>
 
                                                         <div className="space-y-2">
                                                             {survey.questions?.map((q: any) => (
                                                                 <div key={q.id} className="text-sm border-l-2 border-gray-200 pl-3">
-                                                                    <p className="font-medium text-gray-800">Q. {q.text}</p>
+                                                                    <p className="font-medium text-gray-800">Q{q.order}. {q.question}</p>
                                                                     <p className="text-xs text-gray-500 mt-1">
-                                                                        Type: {q.type} | Options: {q.options?.length || 0}
+                                                                        Type: {q.type} | Options: {q.options?.length || 0} | Reward: {q.reward}V
                                                                     </p>
                                                                 </div>
                                                             ))}
