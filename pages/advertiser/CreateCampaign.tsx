@@ -1,11 +1,29 @@
 import React, { useState, useEffect } from 'react';
 import {
     Palette, Users, Calendar, DollarSign, ChevronRight, Check, Upload,
-    Image as ImageIcon, Building2, Tags, Target, Loader2, ChevronDown, Plus
+    Image as ImageIcon, Building2, Tags, Target, Loader2, ChevronDown, Plus,
+    Sparkles, Wand2, TrendingUp, Zap
 } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 import { getFunctions, httpsCallable } from 'firebase/functions';
 import { useApp } from '../../context/AppContext';
+
+interface AIRecommendation {
+    attribute: string;
+    type: string;
+    value: string;
+    score: number;
+    reason: string;
+    estimatedReach: number;
+    estimatedCVR: number;
+    priority: 'high' | 'medium' | 'low';
+}
+
+interface AISuggestion {
+    industries: string[];
+    attributes: Record<string, string[]>;
+    reasoning: string;
+}
 
 interface SavedAudience {
     id: string;
@@ -64,6 +82,14 @@ const CreateCampaign: React.FC = () => {
     const [savedAudiences, setSavedAudiences] = useState<SavedAudience[]>([]);
     const [useExistingAudience, setUseExistingAudience] = useState(false);
     const [expandedIndustry, setExpandedIndustry] = useState<string | null>(null);
+
+    // AI Recommendation states
+    const [showAIAssistant, setShowAIAssistant] = useState(false);
+    const [productDescription, setProductDescription] = useState('');
+    const [isLoadingAI, setIsLoadingAI] = useState(false);
+    const [aiRecommendations, setAIRecommendations] = useState<AIRecommendation[]>([]);
+    const [aiSuggestion, setAISuggestion] = useState<AISuggestion | null>(null);
+
 
     const [formData, setFormData] = useState<CampaignData>({
         name: '',
@@ -150,6 +176,100 @@ const CreateCampaign: React.FC = () => {
     };
 
     const selectedAttributesCount = Object.values(formData.attributes).flat().length;
+
+    // Fetch AI Recommendations based on selected industry and objective
+    const fetchAIRecommendations = async () => {
+        if (formData.industryPaths.length === 0) {
+            addToast('산업을 먼저 선택해주세요.', 'error');
+            return;
+        }
+
+        setIsLoadingAI(true);
+        try {
+            const functions = getFunctions();
+            const getRecommendations = httpsCallable(functions, 'getAttributeRecommendations');
+            const result = await getRecommendations({
+                industryPaths: formData.industryPaths,
+                objective: formData.objective,
+                budget: formData.dailyBudget
+            });
+
+            const data = result.data as any;
+            if (data.success && data.recommendations) {
+                setAIRecommendations(data.recommendations);
+                addToast(`${data.recommendations.length}개의 추천 속성이 생성되었습니다.`, 'success');
+            }
+        } catch (error: any) {
+            console.error('Failed to get AI recommendations:', error);
+            addToast('AI 추천을 불러오는데 실패했습니다.', 'error');
+        }
+        setIsLoadingAI(false);
+    };
+
+    // Get AI targeting suggestions from natural language
+    const fetchAISuggestion = async () => {
+        if (!productDescription.trim()) {
+            addToast('제품 설명을 입력해주세요.', 'error');
+            return;
+        }
+
+        setIsLoadingAI(true);
+        try {
+            const functions = getFunctions();
+            const getAssistant = httpsCallable(functions, 'getAITargetingAssistant');
+            const result = await getAssistant({
+                productDescription,
+                goal: formData.objective
+            });
+
+            const data = result.data as any;
+            if (data.success && data.suggestions) {
+                setAISuggestion(data.suggestions);
+                addToast('타겟팅 제안이 생성되었습니다.', 'success');
+            }
+        } catch (error: any) {
+            console.error('Failed to get AI suggestion:', error);
+            addToast('AI 제안을 불러오는데 실패했습니다.', 'error');
+        }
+        setIsLoadingAI(false);
+    };
+
+    // Apply AI suggestion to form
+    const applyAISuggestion = () => {
+        if (!aiSuggestion) return;
+
+        setFormData(prev => ({
+            ...prev,
+            industryPaths: [...new Set([...prev.industryPaths, ...aiSuggestion.industries])],
+            attributes: Object.entries(aiSuggestion.attributes).reduce((acc, [type, values]) => {
+                const valuesArray = values as string[];
+                acc[type] = [...new Set([...(prev.attributes[type] || []), ...valuesArray])];
+                return acc;
+            }, { ...prev.attributes } as Record<string, string[]>)
+        }));
+
+        setShowAIAssistant(false);
+        setAISuggestion(null);
+        addToast('AI 제안이 적용되었습니다.', 'success');
+    };
+
+    // Apply a single AI recommendation
+    const applyRecommendation = (rec: AIRecommendation) => {
+        setFormData(prev => {
+            const current = prev.attributes[rec.type] || [];
+            if (!current.includes(rec.value)) {
+                return {
+                    ...prev,
+                    attributes: {
+                        ...prev.attributes,
+                        [rec.type]: [...current, rec.value]
+                    }
+                };
+            }
+            return prev;
+        });
+    };
+
 
     const handleSubmit = async () => {
         setIsSubmitting(true);
@@ -376,6 +496,141 @@ const CreateCampaign: React.FC = () => {
                                             ))}
                                         </div>
                                     </div>
+                                </div>
+                            )}
+
+                            {/* AI Recommendation Panel */}
+                            {!useExistingAudience && (
+                                <div className="bg-gradient-to-r from-purple-50 to-indigo-50 rounded-xl p-5 border border-purple-200">
+                                    <div className="flex items-center justify-between mb-4">
+                                        <div className="flex items-center gap-2">
+                                            <Sparkles className="text-purple-600" size={20} />
+                                            <h3 className="font-bold text-gray-800">AI 타겟팅 어시스턴트</h3>
+                                        </div>
+                                        <button
+                                            onClick={() => setShowAIAssistant(!showAIAssistant)}
+                                            className="text-sm text-purple-600 hover:text-purple-700 font-medium"
+                                        >
+                                            {showAIAssistant ? '닫기' : '자연어로 입력하기'}
+                                        </button>
+                                    </div>
+
+                                    {/* Natural Language Input */}
+                                    {showAIAssistant && (
+                                        <div className="mb-4 space-y-3">
+                                            <textarea
+                                                className="w-full px-4 py-3 rounded-xl border border-purple-200 focus:border-purple-500 focus:ring-2 focus:ring-purple-200 transition-all outline-none resize-none"
+                                                placeholder="예: 친환경 비건 뷰티 브랜드입니다. 20대 MZ세대를 타겟으로 프리미엄 스킨케어 제품을 판매하고 있어요."
+                                                rows={3}
+                                                value={productDescription}
+                                                onChange={(e) => setProductDescription(e.target.value)}
+                                            />
+                                            <div className="flex gap-2">
+                                                <button
+                                                    onClick={fetchAISuggestion}
+                                                    disabled={isLoadingAI || !productDescription.trim()}
+                                                    className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                                                >
+                                                    {isLoadingAI ? <Loader2 className="animate-spin" size={16} /> : <Wand2 size={16} />}
+                                                    타겟팅 제안 받기
+                                                </button>
+                                            </div>
+
+                                            {/* AI Suggestion Result */}
+                                            {aiSuggestion && (
+                                                <div className="mt-4 p-4 bg-white rounded-xl border border-purple-200">
+                                                    <p className="text-sm text-gray-600 mb-3">{aiSuggestion.reasoning}</p>
+
+                                                    <div className="space-y-2 mb-4">
+                                                        <div>
+                                                            <span className="text-xs text-gray-500">추천 산업:</span>
+                                                            <div className="flex flex-wrap gap-1 mt-1">
+                                                                {aiSuggestion.industries.map(ind => (
+                                                                    <span key={ind} className="px-2 py-0.5 bg-brand-100 text-brand-700 rounded text-xs">{ind.replace('.', ' > ')}</span>
+                                                                ))}
+                                                            </div>
+                                                        </div>
+                                                        <div>
+                                                            <span className="text-xs text-gray-500">추천 속성:</span>
+                                                            <div className="flex flex-wrap gap-1 mt-1">
+                                                                {Object.entries(aiSuggestion.attributes).flatMap(([type, vals]) =>
+                                                                    (vals as string[]).map(v => (
+                                                                        <span key={`${type}-${v}`} className="px-2 py-0.5 bg-indigo-100 text-indigo-700 rounded text-xs">{v.replace(/_/g, ' ')}</span>
+                                                                    ))
+                                                                )}
+                                                            </div>
+                                                        </div>
+                                                    </div>
+
+                                                    <button
+                                                        onClick={applyAISuggestion}
+                                                        className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors"
+                                                    >
+                                                        <Check size={16} />
+                                                        제안 적용하기
+                                                    </button>
+                                                </div>
+                                            )}
+                                        </div>
+                                    )}
+
+                                    {/* Quick AI Recommendations */}
+                                    {!showAIAssistant && (
+                                        <div className="space-y-3">
+                                            <div className="flex items-center justify-between">
+                                                <p className="text-sm text-gray-600">선택한 산업에 최적화된 속성을 AI가 추천합니다.</p>
+                                                <button
+                                                    onClick={fetchAIRecommendations}
+                                                    disabled={isLoadingAI || formData.industryPaths.length === 0}
+                                                    className="flex items-center gap-1 px-3 py-1.5 bg-purple-600 text-white rounded-lg text-sm hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                                                >
+                                                    {isLoadingAI ? <Loader2 className="animate-spin" size={14} /> : <Zap size={14} />}
+                                                    추천 받기
+                                                </button>
+                                            </div>
+
+                                            {/* AI Recommendations List */}
+                                            {aiRecommendations.length > 0 && (
+                                                <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                                                    {aiRecommendations.slice(0, 6).map((rec, i) => {
+                                                        const isAlreadySelected = formData.attributes[rec.type]?.includes(rec.value);
+                                                        return (
+                                                            <div
+                                                                key={`${rec.attribute}-${i}`}
+                                                                className={`p-3 rounded-lg border ${isAlreadySelected ? 'bg-green-50 border-green-200' : 'bg-white border-gray-200'}`}
+                                                            >
+                                                                <div className="flex items-start justify-between">
+                                                                    <div>
+                                                                        <div className="flex items-center gap-2">
+                                                                            <span className={`px-1.5 py-0.5 rounded text-xs font-medium ${rec.priority === 'high' ? 'bg-red-100 text-red-700' :
+                                                                                    rec.priority === 'medium' ? 'bg-yellow-100 text-yellow-700' : 'bg-gray-100 text-gray-600'
+                                                                                }`}>
+                                                                                {rec.priority === 'high' ? '추천' : rec.priority === 'medium' ? '권장' : '참고'}
+                                                                            </span>
+                                                                            <span className="font-medium text-gray-800 text-sm">{rec.value.replace(/_/g, ' ')}</span>
+                                                                        </div>
+                                                                        <p className="text-xs text-gray-500 mt-1">{rec.reason}</p>
+                                                                        <p className="text-xs text-gray-400 mt-0.5">예상 CVR: {rec.estimatedCVR}%</p>
+                                                                    </div>
+                                                                    {!isAlreadySelected && (
+                                                                        <button
+                                                                            onClick={() => applyRecommendation(rec)}
+                                                                            className="flex-shrink-0 p-1.5 text-purple-600 hover:bg-purple-100 rounded transition-colors"
+                                                                        >
+                                                                            <Plus size={16} />
+                                                                        </button>
+                                                                    )}
+                                                                    {isAlreadySelected && (
+                                                                        <Check size={16} className="flex-shrink-0 text-green-600" />
+                                                                    )}
+                                                                </div>
+                                                            </div>
+                                                        );
+                                                    })}
+                                                </div>
+                                            )}
+                                        </div>
+                                    )}
                                 </div>
                             )}
 
