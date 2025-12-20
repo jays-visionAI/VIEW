@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Settings, LogOut, ChevronRight, Shield, Globe, Bell, Wallet, Award, Clock, Copy, Sparkles, X, Check, AlertTriangle, Coins, ExternalLink, RefreshCw, Lock } from 'lucide-react';
+import { Settings, LogOut, ChevronRight, Shield, Globe, Bell, Wallet, Award, Clock, Copy, Sparkles, X, Check, AlertTriangle, Coins, ExternalLink, RefreshCw, Lock, Plus } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { auth, functions } from '../firebase';
 import { deleteUser } from 'firebase/auth';
@@ -673,13 +673,41 @@ const Profile: React.FC = () => {
               <Sparkles size={16} className="text-yellow-400 ml-2" fill="currentColor" />
             </h1>
 
-            <div className="flex items-center space-x-2 text-gray-400 text-xs bg-white/5 px-3 py-1 rounded-full border border-white/5">
-              <span>UID: {userState.uid ? userState.uid.slice(0, 8) + "..." : "Guest"}</span>
-              <button onClick={handleCopyUid} className="cursor-pointer hover:text-white">
-                <Copy size={10} />
+            {userState.referralCode ? (
+              <button
+                onClick={() => {
+                  const shareUrl = `${window.location.origin}?ref=${userState.referralCode}`;
+                  navigator.clipboard.writeText(shareUrl);
+                  showToast('추천 링크가 복사되었습니다!', 'success');
+                }}
+                className="flex items-center space-x-2 text-emerald-300 text-xs bg-emerald-500/20 px-3 py-1.5 rounded-full border border-emerald-500/30 hover:bg-emerald-500/30 transition-colors cursor-pointer"
+              >
+                <span>🔗 {userState.referralCode}</span>
+                <Copy size={12} />
               </button>
-            </div>
+            ) : (
+              <button
+                onClick={async () => {
+                  try {
+                    const generateFn = httpsCallable(functions, 'generateReferralCode');
+                    const res = await generateFn();
+                    const data = res.data as any;
+                    if (data.success) {
+                      showToast('초대 코드가 생성되었습니다!', 'success');
+                      window.location.reload();
+                    }
+                  } catch (e: any) {
+                    showToast('코드 생성 실패', 'error');
+                  }
+                }}
+                className="flex items-center space-x-2 text-gray-400 text-xs bg-white/5 px-3 py-1.5 rounded-full border border-white/10 hover:bg-white/10 transition-colors cursor-pointer"
+              >
+                <span>초대 코드 생성하기</span>
+                <Plus size={12} />
+              </button>
+            )}
           </div>
+
         </div>
 
         {/* 2. Stats Dashboard (Floating) */}
