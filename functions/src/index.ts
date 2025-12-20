@@ -1271,6 +1271,267 @@ export const uploadSurveys = onCall({
 });
 
 // ============================================
+// Survey CRUD Operations (Admin Only)
+// ============================================
+
+// Create new survey category
+export const createSurveyCategory = onCall({
+    cors: true,
+}, async (request) => {
+    if (!request.auth?.token.email || !ADMIN_EMAILS.includes(request.auth.token.email)) {
+        throw new HttpsError("permission-denied", "관리자 권한이 필요합니다.");
+    }
+
+    const { categoryId, categoryNameKo, completionBonus, order } = request.data;
+
+    if (!categoryId || !categoryNameKo) {
+        throw new HttpsError("invalid-argument", "카테고리 ID와 이름이 필요합니다.");
+    }
+
+    const db = admin.firestore();
+
+    try {
+        const existingDoc = await db.doc(`surveys/${categoryId}`).get();
+        if (existingDoc.exists) {
+            throw new HttpsError("already-exists", "이미 존재하는 카테고리 ID입니다.");
+        }
+
+        await db.doc(`surveys/${categoryId}`).set({
+            id: categoryId,
+            category: categoryId,
+            categoryNameKo,
+            order: order || 999,
+            completionBonus: completionBonus || 50,
+            isActive: true,
+            questions: [],
+            createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        });
+
+        return { success: true, message: "카테고리가 생성되었습니다." };
+    } catch (error: any) {
+        functions.logger.error("createSurveyCategory error:", error);
+        throw new HttpsError("internal", error.message);
+    }
+});
+
+// Update survey category
+export const updateSurveyCategory = onCall({
+    cors: true,
+}, async (request) => {
+    if (!request.auth?.token.email || !ADMIN_EMAILS.includes(request.auth.token.email)) {
+        throw new HttpsError("permission-denied", "관리자 권한이 필요합니다.");
+    }
+
+    const { categoryId, updates } = request.data;
+
+    if (!categoryId) {
+        throw new HttpsError("invalid-argument", "카테고리 ID가 필요합니다.");
+    }
+
+    const db = admin.firestore();
+
+    try {
+        const docRef = db.doc(`surveys/${categoryId}`);
+        const doc = await docRef.get();
+
+        if (!doc.exists) {
+            throw new HttpsError("not-found", "카테고리를 찾을 수 없습니다.");
+        }
+
+        // Filter allowed fields
+        const allowedUpdates: Record<string, any> = {};
+        if (updates.categoryNameKo !== undefined) allowedUpdates.categoryNameKo = updates.categoryNameKo;
+        if (updates.order !== undefined) allowedUpdates.order = updates.order;
+        if (updates.completionBonus !== undefined) allowedUpdates.completionBonus = updates.completionBonus;
+        if (updates.isActive !== undefined) allowedUpdates.isActive = updates.isActive;
+
+        allowedUpdates.updatedAt = admin.firestore.FieldValue.serverTimestamp();
+
+        await docRef.update(allowedUpdates);
+
+        return { success: true, message: "카테고리가 수정되었습니다." };
+    } catch (error: any) {
+        functions.logger.error("updateSurveyCategory error:", error);
+        throw new HttpsError("internal", error.message);
+    }
+});
+
+// Delete survey category
+export const deleteSurveyCategory = onCall({
+    cors: true,
+}, async (request) => {
+    if (!request.auth?.token.email || !ADMIN_EMAILS.includes(request.auth.token.email)) {
+        throw new HttpsError("permission-denied", "관리자 권한이 필요합니다.");
+    }
+
+    const { categoryId } = request.data;
+
+    if (!categoryId) {
+        throw new HttpsError("invalid-argument", "카테고리 ID가 필요합니다.");
+    }
+
+    const db = admin.firestore();
+
+    try {
+        await db.doc(`surveys/${categoryId}`).delete();
+        return { success: true, message: "카테고리가 삭제되었습니다." };
+    } catch (error: any) {
+        functions.logger.error("deleteSurveyCategory error:", error);
+        throw new HttpsError("internal", error.message);
+    }
+});
+
+// Add question to category
+export const addSurveyQuestion = onCall({
+    cors: true,
+}, async (request) => {
+    if (!request.auth?.token.email || !ADMIN_EMAILS.includes(request.auth.token.email)) {
+        throw new HttpsError("permission-denied", "관리자 권한이 필요합니다.");
+    }
+
+    const { categoryId, question } = request.data;
+
+    if (!categoryId || !question) {
+        throw new HttpsError("invalid-argument", "카테고리 ID와 질문 데이터가 필요합니다.");
+    }
+
+    const db = admin.firestore();
+
+    try {
+        const docRef = db.doc(`surveys/${categoryId}`);
+        const doc = await docRef.get();
+
+        if (!doc.exists) {
+            throw new HttpsError("not-found", "카테고리를 찾을 수 없습니다.");
+        }
+
+        const data = doc.data();
+        const questions = data?.questions || [];
+
+        // Validate question structure
+        const newQuestion = {
+            id: question.id || `q${Date.now()}`,
+            order: question.order || questions.length + 1,
+            question: question.question,
+            type: question.type || 'single',
+            options: question.options || [],
+            min: question.min,
+            max: question.max,
+            sliderLabels: question.sliderLabels,
+            reward: question.reward || 10,
+            required: question.required !== false,
+        };
+
+        questions.push(newQuestion);
+
+        await docRef.update({
+            questions,
+            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        });
+
+        return { success: true, message: "질문이 추가되었습니다.", questionId: newQuestion.id };
+    } catch (error: any) {
+        functions.logger.error("addSurveyQuestion error:", error);
+        throw new HttpsError("internal", error.message);
+    }
+});
+
+// Update question in category
+export const updateSurveyQuestion = onCall({
+    cors: true,
+}, async (request) => {
+    if (!request.auth?.token.email || !ADMIN_EMAILS.includes(request.auth.token.email)) {
+        throw new HttpsError("permission-denied", "관리자 권한이 필요합니다.");
+    }
+
+    const { categoryId, questionId, updates } = request.data;
+
+    if (!categoryId || !questionId) {
+        throw new HttpsError("invalid-argument", "카테고리 ID와 질문 ID가 필요합니다.");
+    }
+
+    const db = admin.firestore();
+
+    try {
+        const docRef = db.doc(`surveys/${categoryId}`);
+        const doc = await docRef.get();
+
+        if (!doc.exists) {
+            throw new HttpsError("not-found", "카테고리를 찾을 수 없습니다.");
+        }
+
+        const data = doc.data();
+        const questions = data?.questions || [];
+        const questionIndex = questions.findIndex((q: any) => q.id === questionId);
+
+        if (questionIndex === -1) {
+            throw new HttpsError("not-found", "질문을 찾을 수 없습니다.");
+        }
+
+        // Merge updates
+        questions[questionIndex] = {
+            ...questions[questionIndex],
+            ...updates,
+            id: questionId, // Preserve ID
+        };
+
+        await docRef.update({
+            questions,
+            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        });
+
+        return { success: true, message: "질문이 수정되었습니다." };
+    } catch (error: any) {
+        functions.logger.error("updateSurveyQuestion error:", error);
+        throw new HttpsError("internal", error.message);
+    }
+});
+
+// Delete question from category
+export const deleteSurveyQuestion = onCall({
+    cors: true,
+}, async (request) => {
+    if (!request.auth?.token.email || !ADMIN_EMAILS.includes(request.auth.token.email)) {
+        throw new HttpsError("permission-denied", "관리자 권한이 필요합니다.");
+    }
+
+    const { categoryId, questionId } = request.data;
+
+    if (!categoryId || !questionId) {
+        throw new HttpsError("invalid-argument", "카테고리 ID와 질문 ID가 필요합니다.");
+    }
+
+    const db = admin.firestore();
+
+    try {
+        const docRef = db.doc(`surveys/${categoryId}`);
+        const doc = await docRef.get();
+
+        if (!doc.exists) {
+            throw new HttpsError("not-found", "카테고리를 찾을 수 없습니다.");
+        }
+
+        const data = doc.data();
+        const questions = (data?.questions || []).filter((q: any) => q.id !== questionId);
+
+        // Re-order remaining questions
+        questions.forEach((q: any, idx: number) => {
+            q.order = idx + 1;
+        });
+
+        await docRef.update({
+            questions,
+            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        });
+
+        return { success: true, message: "질문이 삭제되었습니다." };
+    } catch (error: any) {
+        functions.logger.error("deleteSurveyQuestion error:", error);
+        throw new HttpsError("internal", error.message);
+    }
+});
+
+// ============================================
 // submitSurveyAnswer - 설문 응답 제출
 // ============================================
 export const submitSurveyAnswer = onCall({
@@ -2373,7 +2634,9 @@ export const getPredictionRoundDetail = onCall({
 });
 
 // getJackpotStatus
-export const getJackpotStatus = functions.https.onCall(async (data, context) => {
+export const getJackpotStatus = onCall({
+    cors: true,
+}, async (request) => {
     try {
         const db = admin.firestore();
         const doc = await db.doc('settings/jackpot').get();
