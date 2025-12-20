@@ -185,17 +185,22 @@ const SwipeGame: React.FC<{
   onComplete: () => void;
   onSwipe: (item: any, direction: 'left' | 'right') => void;
 }> = ({ onComplete, onSwipe }) => {
-  // Sample swipe items with product images (could be fetched from Firestore)
-  const swipeItems = [
-    { id: '1', name: 'Nike Air Max', brand: 'Nike', imageUrl: 'https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=400', category: 'Fashion.Footwear', taxonomyTags: ['Fashion', 'Fashion.Footwear'] },
-    { id: '2', name: 'iPhone 15 Pro', brand: 'Apple', imageUrl: 'https://images.unsplash.com/photo-1695048133142-1a20484d2569?w=400', category: 'Technology.Consumer_Electronics', taxonomyTags: ['Technology', 'Technology.Consumer_Electronics', 'Technology.Consumer_Electronics.Smartphone'] },
-    { id: '3', name: 'Premium Coffee', brand: 'Starbucks', imageUrl: 'https://images.unsplash.com/photo-1509042239860-f550ce710b93?w=400', category: 'Food_Beverage', taxonomyTags: ['Food_Beverage', 'Food_Beverage.Beverages'] },
-    { id: '4', name: 'Travel to Bali', brand: '', imageUrl: 'https://images.unsplash.com/photo-1537996194471-e657df975ab4?w=400', category: 'Travel', taxonomyTags: ['Travel', 'Travel.International'] },
-    { id: '5', name: 'Gaming Console', brand: 'PlayStation', imageUrl: 'https://images.unsplash.com/photo-1606144042614-b2417e99c4e3?w=400', category: 'Entertainment.Gaming', taxonomyTags: ['Entertainment', 'Entertainment.Gaming'] },
-    { id: '6', name: 'Luxury Watch', brand: 'Omega', imageUrl: 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=400', category: 'Fashion.Accessories', taxonomyTags: ['Fashion', 'Fashion.Accessories'] },
-    { id: '7', name: 'Electric Car', brand: 'Tesla', imageUrl: 'https://images.unsplash.com/photo-1617788138017-80ad40651399?w=400', category: 'Automotive', taxonomyTags: ['Automotive', 'Automotive.EV'] },
-    { id: '8', name: 'Skincare Set', brand: 'Lush', imageUrl: 'https://images.unsplash.com/photo-1556228453-efd6c1ff04f6?w=400', category: 'Beauty', taxonomyTags: ['Beauty', 'Beauty.Skincare'] },
-  ];
+  // Dynamic swipe items from constants (80+ items, shuffled)
+  const [swipeItems] = useState(() => {
+    // Lazy import to avoid circular deps
+    const { SWIPE_ITEMS } = require('../src/constants/swipeItems');
+    // Shuffle and pick 20 random items for this session
+    const shuffled = [...SWIPE_ITEMS].sort(() => Math.random() - 0.5);
+    return shuffled.slice(0, 20).map((item: any) => ({
+      id: item.id,
+      name: item.name,
+      brand: item.brand || '',
+      imageUrl: item.imageUrl,
+      category: `${item.industry}.${item.category}`,
+      taxonomyTags: [item.industry, `${item.industry}.${item.category}`, item.subcategory ? `${item.industry}.${item.category}.${item.subcategory}` : null].filter(Boolean),
+      attributes: item.attributes,
+    }));
+  });
 
   const [currentIndex, setCurrentIndex] = useState(0);
   const [dragOffset, setDragOffset] = useState(0);
