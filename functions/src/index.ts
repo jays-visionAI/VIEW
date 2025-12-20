@@ -4944,3 +4944,290 @@ export const recordSwipeActivity = onCall({
         throw new HttpsError('internal', error.message);
     }
 });
+
+// ============================================
+// Grade System
+// ============================================
+
+// Default grade tiers (used if not in Firestore)
+const DEFAULT_GRADE_TIERS = [
+    { id: 'bronze', name: 'Bronze', nameKo: '브론즈', icon: '🥉', color: 'text-orange-700', bgColor: 'bg-orange-100', requiredActiveDays: 0, requiredActivityScore: 0, requiredStreak: 0, requiredReferrals: 0, vpMultiplier: 1.0, stakingBoost: 0, referralBonus: 0 },
+    { id: 'silver', name: 'Silver', nameKo: '실버', icon: '🥈', color: 'text-gray-500', bgColor: 'bg-gray-100', requiredActiveDays: 7, requiredActivityScore: 500, requiredStreak: 3, requiredReferrals: 0, vpMultiplier: 1.1, stakingBoost: 5, referralBonus: 5 },
+    { id: 'gold', name: 'Gold', nameKo: '골드', icon: '🥇', color: 'text-yellow-600', bgColor: 'bg-yellow-100', requiredActiveDays: 30, requiredActivityScore: 2000, requiredStreak: 7, requiredReferrals: 0, vpMultiplier: 1.2, stakingBoost: 10, referralBonus: 10 },
+    { id: 'platinum', name: 'Platinum', nameKo: '플래티넘', icon: '💎', color: 'text-cyan-600', bgColor: 'bg-cyan-100', requiredActiveDays: 90, requiredActivityScore: 8000, requiredStreak: 14, requiredReferrals: 2, vpMultiplier: 1.3, stakingBoost: 15, referralBonus: 15 },
+    { id: 'diamond', name: 'Diamond', nameKo: '다이아몬드', icon: '👑', color: 'text-purple-600', bgColor: 'bg-purple-100', requiredActiveDays: 180, requiredActivityScore: 20000, requiredStreak: 30, requiredReferrals: 5, vpMultiplier: 1.5, stakingBoost: 25, referralBonus: 25 },
+];
+
+const DEFAULT_ACTIVITY_SCORES = {
+    dailyCheckIn: 10,
+    adWatch: 5,
+    adWatchDailyMax: 25,
+    swipePer10: 1,
+    swipeDailyMax: 5,
+    prediction: 10,
+    surveyAnswer: 3,
+    surveyDailyMax: 30,
+    referral: 50,
+};
+
+// Get User Grade
+export const getUserGrade = onCall({
+    cors: true,
+}, async (request) => {
+    if (!request.auth) {
+        throw new HttpsError("unauthenticated", "로그인이 필요합니다.");
+    }
+
+    const uid = request.auth.uid;
+    const db = admin.firestore();
+
+    try {
+        // Get grade settings
+        const settingsDoc = await db.doc('settings/gradeSystem').get();
+        const tiers = settingsDoc.exists ? settingsDoc.data()?.tiers || DEFAULT_GRADE_TIERS : DEFAULT_GRADE_TIERS;
+
+        // Get user activity data
+        const userDoc = await db.doc(`users/${uid}`).get();
+        const userData = userDoc.data() || {};
+
+        const activityData = {
+            activeDays: userData.activeDays || 0,
+            totalActivityScore: userData.totalActivityScore || 0,
+            currentStreak: userData.currentStreak || 0,
+            longestStreak: userData.longestStreak || 0,
+            referralsCount: (userData.directReferrals || 0) + (userData.indirectReferrals || 0),
+            lastActiveAt: userData.lastActiveAt,
+            createdAt: userData.createdAt,
+        };
+
+        // Calculate days since registration
+        const createdAt = userData.createdAt?.toDate ? userData.createdAt.toDate() : new Date(userData.createdAt || Date.now());
+        const daysSinceJoin = Math.floor((Date.now() - createdAt.getTime()) / (1000 * 60 * 60 * 24));
+
+        // Calculate current grade
+        const sortedTiers = [...tiers].sort((a: any, b: any) => b.requiredActiveDays - a.requiredActiveDays);
+        let currentGrade = sortedTiers[sortedTiers.length - 1];
+
+        for (const tier of sortedTiers) {
+            const meetsActiveDays = activityData.activeDays >= tier.requiredActiveDays;
+            const meetsActivityScore = activityData.totalActivityScore >= tier.requiredActivityScore;
+            const meetsStreak = activityData.currentStreak >= tier.requiredStreak;
+            const meetsReferrals = activityData.referralsCount >= tier.requiredReferrals;
+
+            if (meetsActiveDays && (meetsActivityScore || (meetsStreak && meetsReferrals))) {
+                currentGrade = tier;
+                break;
+            }
+        }
+
+        // Find next tier
+        const currentIndex = tiers.findIndex((t: any) => t.id === currentGrade.id);
+        const nextTier = currentIndex < tiers.length - 1 ? tiers[currentIndex + 1] : null;
+
+        // Calculate progress to next tier
+        let progress = 100;
+        if (nextTier) {
+            const daysProgress = Math.min(100, (activityData.activeDays / nextTier.requiredActiveDays) * 100);
+            const scoreProgress = Math.min(100, (activityData.totalActivityScore / nextTier.requiredActivityScore) * 100);
+            progress = Math.max(daysProgress, scoreProgress);
+        }
+
+        return {
+            success: true,
+            grade: currentGrade,
+            nextGrade: nextTier,
+            progress,
+            activity: activityData,
+            daysSinceJoin,
+            allTiers: tiers,
+        };
+    } catch (error: any) {
+        functions.logger.error('getUserGrade error:', error);
+        throw new HttpsError('internal', error.message);
+    }
+});
+
+// Record Daily Activity (Call on app open)
+export const recordDailyActivity = onCall({
+    cors: true,
+}, async (request) => {
+    if (!request.auth) {
+        throw new HttpsError("unauthenticated", "로그인이 필요합니다.");
+    }
+
+    const uid = request.auth.uid;
+    const db = admin.firestore();
+    const { activityType, count = 1 } = request.data || {};
+
+    try {
+        // Get settings
+        const settingsDoc = await db.doc('settings/gradeSystem').get();
+        const scoreConfig = settingsDoc.exists ? settingsDoc.data()?.activityScores || DEFAULT_ACTIVITY_SCORES : DEFAULT_ACTIVITY_SCORES;
+
+        const userRef = db.doc(`users/${uid}`);
+        const userDoc = await userRef.get();
+        const userData = userDoc.data() || {};
+
+        const today = new Date().toISOString().split('T')[0];
+        const lastActiveDate = userData.lastActiveAt?.toDate?.().toISOString().split('T')[0] || null;
+
+        let updates: any = {
+            lastActiveAt: admin.firestore.FieldValue.serverTimestamp(),
+        };
+
+        let scoreEarned = 0;
+        let isNewDay = lastActiveDate !== today;
+
+        // Handle daily check-in
+        if (isNewDay) {
+            // Increment active days
+            updates.activeDays = admin.firestore.FieldValue.increment(1);
+            scoreEarned += scoreConfig.dailyCheckIn;
+
+            // Update streak
+            const yesterday = new Date();
+            yesterday.setDate(yesterday.getDate() - 1);
+            const yesterdayStr = yesterday.toISOString().split('T')[0];
+
+            if (lastActiveDate === yesterdayStr) {
+                // Consecutive day
+                const newStreak = (userData.currentStreak || 0) + 1;
+                updates.currentStreak = newStreak;
+                if (newStreak > (userData.longestStreak || 0)) {
+                    updates.longestStreak = newStreak;
+                }
+            } else {
+                // Streak broken
+                updates.currentStreak = 1;
+            }
+
+            // Reset daily counters
+            updates.todayAdsWatched = 0;
+            updates.todaySwipes = 0;
+            updates.todaySurveyAnswers = 0;
+            updates.todayPredictions = 0;
+        }
+
+        // Handle specific activity types
+        if (activityType) {
+            const todayKey = `today${activityType.charAt(0).toUpperCase() + activityType.slice(1)}`;
+            const currentCount = userData[todayKey] || 0;
+
+            switch (activityType) {
+                case 'adWatch':
+                    if (currentCount < scoreConfig.adWatchDailyMax / scoreConfig.adWatch) {
+                        scoreEarned += scoreConfig.adWatch * count;
+                        updates[todayKey] = admin.firestore.FieldValue.increment(count);
+                    }
+                    break;
+                case 'swipe':
+                    const swipeScore = Math.floor(count / 10) * scoreConfig.swipePer10;
+                    if (currentCount < scoreConfig.swipeDailyMax) {
+                        scoreEarned += Math.min(swipeScore, scoreConfig.swipeDailyMax - currentCount);
+                    }
+                    break;
+                case 'prediction':
+                    if (currentCount < 1) {
+                        scoreEarned += scoreConfig.prediction;
+                        updates[todayKey] = 1;
+                    }
+                    break;
+                case 'survey':
+                    if (currentCount < scoreConfig.surveyDailyMax / scoreConfig.surveyAnswer) {
+                        scoreEarned += scoreConfig.surveyAnswer * count;
+                        updates[todayKey] = admin.firestore.FieldValue.increment(count);
+                    }
+                    break;
+                case 'referral':
+                    scoreEarned += scoreConfig.referral * count;
+                    break;
+            }
+        }
+
+        // Update total activity score
+        if (scoreEarned > 0) {
+            updates.totalActivityScore = admin.firestore.FieldValue.increment(scoreEarned);
+        }
+
+        await userRef.update(updates);
+
+        return {
+            success: true,
+            isNewDay,
+            scoreEarned,
+            message: isNewDay ? '출석 체크 완료!' : null,
+        };
+    } catch (error: any) {
+        functions.logger.error('recordDailyActivity error:', error);
+        throw new HttpsError('internal', error.message);
+    }
+});
+
+// Get Grade Settings (Admin)
+export const getGradeSettings = onCall({
+    cors: true,
+}, async (request) => {
+    if (!request.auth) {
+        throw new HttpsError("unauthenticated", "로그인이 필요합니다.");
+    }
+
+    // Check admin
+    const email = request.auth.token.email || '';
+    if (!ADMIN_EMAILS.includes(email)) {
+        throw new HttpsError("permission-denied", "관리자 권한이 필요합니다.");
+    }
+
+    const db = admin.firestore();
+
+    try {
+        const settingsDoc = await db.doc('settings/gradeSystem').get();
+
+        if (settingsDoc.exists) {
+            return { success: true, settings: settingsDoc.data() };
+        } else {
+            // Return defaults
+            return {
+                success: true,
+                settings: {
+                    tiers: DEFAULT_GRADE_TIERS,
+                    activityScores: DEFAULT_ACTIVITY_SCORES,
+                },
+            };
+        }
+    } catch (error: any) {
+        functions.logger.error('getGradeSettings error:', error);
+        throw new HttpsError('internal', error.message);
+    }
+});
+
+// Update Grade Settings (Admin)
+export const updateGradeSettings = onCall({
+    cors: true,
+}, async (request) => {
+    if (!request.auth) {
+        throw new HttpsError("unauthenticated", "로그인이 필요합니다.");
+    }
+
+    // Check admin
+    const email = request.auth.token.email || '';
+    if (!ADMIN_EMAILS.includes(email)) {
+        throw new HttpsError("permission-denied", "관리자 권한이 필요합니다.");
+    }
+
+    const db = admin.firestore();
+    const { tiers, activityScores } = request.data;
+
+    try {
+        await db.doc('settings/gradeSystem').set({
+            tiers: tiers || DEFAULT_GRADE_TIERS,
+            activityScores: activityScores || DEFAULT_ACTIVITY_SCORES,
+            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+            updatedBy: request.auth.uid,
+        });
+
+        return { success: true, message: '등급 설정이 업데이트되었습니다.' };
+    } catch (error: any) {
+        functions.logger.error('updateGradeSettings error:', error);
+        throw new HttpsError('internal', error.message);
+    }
+});

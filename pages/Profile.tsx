@@ -391,6 +391,7 @@ const Profile: React.FC = () => {
   const [isClaimModalOpen, setIsClaimModalOpen] = useState(false);
   const [isAdminOpen, setIsAdminOpen] = useState(false);
   const [personaData, setPersonaData] = useState<any>(null);
+  const [gradeData, setGradeData] = useState<any>(null);
 
   // Fetch Persona Data
   const fetchPersona = async () => {
@@ -430,11 +431,39 @@ const Profile: React.FC = () => {
     }
   };
 
+  // Fetch Grade Data
+  const fetchGrade = async () => {
+    try {
+      // Record daily activity (check-in)
+      const recordActivityFn = httpsCallable(functions, 'recordDailyActivity');
+      await recordActivityFn({});
+
+      // Get user grade
+      const getGradeFn = httpsCallable(functions, 'getUserGrade');
+      const result = await getGradeFn();
+      const data = result.data as any;
+
+      if (data.success) {
+        setGradeData(data);
+      }
+    } catch (error) {
+      console.warn("Error fetching grade:", error);
+      // Set default grade
+      setGradeData({
+        grade: { id: 'bronze', name: 'Bronze', nameKo: '브론즈', icon: '🥉', color: 'text-orange-700', bgColor: 'bg-orange-100' },
+        daysSinceJoin: 0,
+        activity: { activeDays: 0, currentStreak: 0, totalActivityScore: 0 },
+      });
+    }
+  };
+
   useEffect(() => {
     if (userState.uid) {
       fetchPersona();
+      fetchGrade();
     }
   }, [userState.uid]);
+
 
   // Referral state
   const [referrerCodeInput, setReferrerCodeInput] = useState('');
@@ -664,20 +693,25 @@ const Profile: React.FC = () => {
               <span className="text-gray-400 text-[10px]">View Point</span>
             </div>
             <div className="flex flex-col items-center justify-center p-2">
-              <div className="w-8 h-8 rounded-full bg-yellow-50 text-yellow-600 flex items-center justify-center mb-2">
-                <Award size={16} />
+              <div className={`w-8 h-8 rounded-full ${gradeData?.grade?.bgColor || 'bg-yellow-50'} flex items-center justify-center mb-2 text-lg`}>
+                {gradeData?.grade?.icon || '🥉'}
               </div>
-              <span className="text-gray-900 font-bold text-sm">Gold</span>
+              <span className={`font-bold text-sm ${gradeData?.grade?.color || 'text-yellow-600'}`}>
+                {gradeData?.grade?.nameKo || '브론즈'}
+              </span>
               <span className="text-gray-400 text-[10px]">현재 등급</span>
             </div>
             <div className="flex flex-col items-center justify-center p-2">
               <div className="w-8 h-8 rounded-full bg-blue-50 text-blue-600 flex items-center justify-center mb-2">
                 <Clock size={16} />
               </div>
-              <span className="text-gray-900 font-bold text-sm">34일</span>
-              <span className="text-gray-400 text-[10px]">함께한 시간</span>
+              <span className="text-gray-900 font-bold text-sm">
+                {gradeData?.activity?.activeDays || 0}일
+              </span>
+              <span className="text-gray-400 text-[10px]">활성 사용</span>
             </div>
           </div>
+
         </div>
 
         {/* 2.5 Persona Dashboard */}
