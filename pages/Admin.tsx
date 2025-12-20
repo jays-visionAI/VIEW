@@ -9,14 +9,16 @@ import { GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged, User 
 import DocumentArchive from '../components/admin/DocumentArchive';
 import PredictionAdmin from '../components/admin/PredictionAdmin';
 import SurveyEditor from '../components/admin/SurveyEditor';
+import GradeSettingsTab from '../components/admin/GradeSettingsTab';
 import { INDUSTRY_TAXONOMY_V1_1, ATTRIBUTE_TAXONOMY_V1_0 } from '../src/constants/taxonomy';
+
 
 // Admin emails whitelist (can also be stored in Firestore /settings/admin)
 const ADMIN_EMAILS = [
     'jays@visai.io',
 ];
 
-type TabType = 'users' | 'tokenomics' | 'staking' | 'referral' | 'taxonomy' | 'personas' | 'documents' | 'prediction';
+type TabType = 'users' | 'tokenomics' | 'staking' | 'referral' | 'taxonomy' | 'personas' | 'documents' | 'prediction' | 'grades';
 
 interface UserData {
     uid: string;
@@ -540,6 +542,13 @@ export const AdminPage: React.FC = () => {
                     >
                         <TrendingUp size={20} />
                         <span>BTC 예측</span>
+                    </button>
+                    <button
+                        onClick={() => setActiveTab('grades')}
+                        className={`w-full flex items-center space-x-3 px-4 py-3 rounded-xl transition-colors ${activeTab === 'grades' ? 'bg-brand-50 text-brand-600 font-bold' : 'text-gray-500 hover:bg-gray-50'}`}
+                    >
+                        <Users size={20} />
+                        <span>등급 시스템</span>
                     </button>
                     <a
                         href="/"
@@ -1325,6 +1334,11 @@ export const AdminPage: React.FC = () => {
                         {/* Prediction Tab */}
                         {activeTab === 'prediction' && (
                             <PredictionAdmin />
+                        )}
+
+                        {/* Grades Tab */}
+                        {activeTab === 'grades' && (
+                            <GradeSettingsTab />
                         )}
                     </div>
                 </div>
