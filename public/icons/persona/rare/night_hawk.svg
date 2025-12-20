@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none">
+  <defs>
+    <linearGradient id="nighthawk" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#1E293B"/>
+      <stop offset="100%" stop-color="#0F172A"/>
+    </linearGradient>
+  </defs>
+  <circle cx="32" cy="32" r="30" fill="url(#nighthawk)" opacity="0.15"/>
+  <path d="M32 14C24 14 18 22 18 32C18 42 24 50 32 50C40 50 46 42 46 32C46 22 40 14 32 14Z" fill="url(#nighthawk)"/>
+  <path d="M32 20C28 20 24 24 24 32C24 40 28 44 32 44" stroke="#FBBF24" stroke-width="2" stroke-linecap="round"/>
+  <circle cx="40" cy="28" r="3" fill="#FBBF24"/>
+  <circle cx="32" cy="32" r="30" stroke="url(#nighthawk)" stroke-width="2"/>
+</svg>

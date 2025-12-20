@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none">
+  <defs>
+    <linearGradient id="impulse" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#FBBF24"/>
+      <stop offset="100%" stop-color="#F59E0B"/>
+    </linearGradient>
+  </defs>
+  <circle cx="32" cy="32" r="30" fill="url(#impulse)" opacity="0.15"/>
+  <path d="M36 12L24 34H32L28 52L40 30H32L36 12Z" fill="url(#impulse)"/>
+  <circle cx="32" cy="32" r="30" stroke="url(#impulse)" stroke-width="2"/>
+</svg>

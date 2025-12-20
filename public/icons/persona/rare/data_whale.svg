@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none">
+  <defs>
+    <linearGradient id="whale" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#3B82F6"/>
+      <stop offset="50%" stop-color="#60A5FA"/>
+      <stop offset="100%" stop-color="#9333EA"/>
+    </linearGradient>
+  </defs>
+  <circle cx="32" cy="32" r="30" fill="url(#whale)" opacity="0.15"/>
+  <path d="M16 36C16 36 20 28 32 28C44 28 48 36 48 36C48 36 44 44 32 44C20 44 16 36 16 36Z" fill="url(#whale)"/>
+  <circle cx="32" cy="36" r="4" fill="white"/>
+  <path d="M48 36L56 32V40L48 36Z" fill="url(#whale)"/>
+  <circle cx="32" cy="32" r="30" stroke="url(#whale)" stroke-width="2"/>
+</svg>

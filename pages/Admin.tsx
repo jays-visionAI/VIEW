@@ -9,6 +9,7 @@ import { GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged, User 
 import DocumentArchive from '../components/admin/DocumentArchive';
 import PredictionAdmin from '../components/admin/PredictionAdmin';
 import SurveyEditor from '../components/admin/SurveyEditor';
+import { INDUSTRY_TAXONOMY_V1_1, ATTRIBUTE_TAXONOMY_V1_0 } from '../src/constants/taxonomy';
 
 // Admin emails whitelist (can also be stored in Firestore /settings/admin)
 const ADMIN_EMAILS = [
@@ -267,108 +268,11 @@ export const AdminPage: React.FC = () => {
             const uploadTaxonomy = httpsCallable(functions, 'uploadTaxonomy');
 
             // Industry Taxonomy v1.1
-            const industryData = mode === 'attribute' ? undefined : {
-                version: '1.1',
-                lastUpdated: '2025-12-19',
-                taxonomy: {
-                    Fashion: {
-                        Apparel: ['Menswear', 'Womenswear', 'Sportswear', 'Outdoorwear', 'Kidswear', 'Maternity', 'Plus_Size'],
-                        Footwear: ['Sneakers', 'Sandals', 'Boots', 'High_Heels', 'Loafers', 'Athletic_Shoes'],
-                        Accessories: ['Bags', 'Watches', 'Jewelry', 'Belts', 'Glasses', 'Hats', 'Scarves', 'Wallets'],
-                    },
-                    Beauty: {
-                        Skincare: ['Anti_Aging', 'Whitening', 'Moisturizing', 'Sunscreen', 'Serum', 'Toner', 'Essence'],
-                        Makeup: ['Lipstick', 'Foundation', 'Mascara', 'Eyeliner', 'Blusher', 'Concealer', 'Primer'],
-                        Haircare: ['Shampoo', 'Conditioner', 'Treatment', 'Styling', 'Hair_Color', 'Scalp_Care'],
-                        Fragrance: ['Perfume', 'Body_Mist', 'Home_Fragrance', 'Niche_Perfume'],
-                        Tools_Devices: ['Makeup_Brushes', 'Beauty_Devices', 'Hair_Dryers', 'Straighteners'],
-                    },
-                    Technology: {
-                        Consumer_Electronics: ['Smartphone', 'Laptop', 'Tablet', 'Smartwatch', 'Headphones', 'Camera', 'Drone'],
-                        Software: ['Productivity', 'Security', 'Cloud_Service', 'AI_Application', 'CRM', 'Design_Tools'],
-                        Gaming: ['Console', 'PC_Game', 'Mobile_Game', 'VR_AR', 'Esports', 'Gaming_Accessories'],
-                        Smart_Home: ['Smart_Speaker', 'Smart_Lighting', 'Smart_Security', 'Smart_Thermostat', 'Robot_Vacuum'],
-                        Wearables: ['Fitness_Tracker', 'Smart_Ring', 'AR_Glasses', 'Health_Monitor'],
-                    },
-                    Food_Beverage: {
-                        Restaurant: ['Fine_Dining', 'Casual_Dining', 'Fast_Food', 'Cafe', 'Bakery', 'Food_Truck'],
-                        Beverage: ['Coffee', 'Tea', 'Juice', 'Alcohol', 'Energy_Drink', 'Craft_Beer', 'Wine'],
-                        Grocery: ['Organic_Food', 'Snack', 'Frozen_Food', 'Dairy_Product', 'Fresh_Produce', 'Meat_Seafood'],
-                        Delivery_Service: ['Meal_Kit', 'Food_Delivery_Platform', 'Grocery_Delivery', 'Subscription_Box'],
-                    },
-                    Travel: {
-                        Airline: ['Budget', 'Full_Service', 'Charter', 'Business_Class', 'First_Class'],
-                        Hotel: ['Resort', 'Boutique', 'Business', 'Capsule', 'Hostel', 'Vacation_Rental'],
-                        Tour: ['Honeymoon', 'Cultural', 'Adventure', 'Wellness', 'Food_Tour', 'Photography'],
-                        Transportation: ['Train', 'Bus', 'Car_Rental', 'Cruise', 'Bike_Rental'],
-                    },
-                    Finance: {
-                        Banking: ['Savings_Account', 'Loan', 'Credit_Card', 'Payment_App', 'Mortgage'],
-                        Investment: ['Stocks', 'ETF', 'Crypto', 'Real_Estate_Fund', 'Bonds', 'Mutual_Fund'],
-                        Insurance: ['Life', 'Health', 'Car', 'Travel', 'Property', 'Pet'],
-                        Fintech: ['Digital_Wallet', 'Robo_Advisor', 'DeFi', 'P2P_Lending', 'BNPL', 'Neobank'],
-                    },
-                    Health_Wellness: {
-                        Fitness: ['Gym', 'Yoga', 'Pilates', 'Home_Training', 'CrossFit', 'Swimming', 'Martial_Arts'],
-                        Nutrition: ['Supplements', 'Vitamins', 'Protein', 'Health_Drinks', 'Probiotics'],
-                        Medical_Service: ['Clinic', 'Dental', 'Dermatology', 'Aesthetic', 'Telemedicine'],
-                        Mental_Health: ['Meditation', 'Counseling', 'Therapy', 'Stress_Management', 'Mindfulness'],
-                    },
-                    Education: {
-                        Online_Course: ['Language', 'Programming', 'Business', 'Design', 'Music', 'Data_Science'],
-                        Institution: ['University', 'College', 'Vocational_School', 'Tutoring_Center'],
-                        Certification: ['MBA', 'TOEFL', 'IELTS', 'Blockchain_Certification', 'AI_Engineer', 'AWS'],
-                        EdTech: ['LMS', 'Online_Tutoring', 'Study_App', 'Assessment_Tool'],
-                    },
-                    Entertainment: {
-                        Streaming: ['OTT', 'Music', 'Podcast', 'Webtoon', 'Live_Streaming'],
-                        Event: ['Concert', 'Exhibition', 'Festival', 'Theater', 'Fan_Meeting'],
-                        Media: ['TV_Channel', 'Influencer', 'Magazine', 'YouTube', 'TikTok'],
-                        Sports: ['Football', 'Golf', 'eSports', 'Basketball', 'Tennis', 'Running'],
-                    },
-                    Home_Living: {
-                        Furniture: ['Sofa', 'Bed', 'Table', 'Lighting', 'Chair', 'Storage'],
-                        Interior: ['Wallpaper', 'Flooring', 'Home_Decor', 'Curtains', 'Rugs', 'Plants'],
-                        Appliances: ['Refrigerator', 'Washing_Machine', 'Air_Conditioner', 'Vacuum', 'Air_Purifier'],
-                        Real_Estate: ['Apartment', 'Villa', 'Commercial', 'Rental_Service', 'Co_Living'],
-                    },
-                    Auto_Mobility: {
-                        Vehicle: ['Electric_Vehicle', 'SUV', 'Sedan', 'Motorcycle', 'Truck', 'Hybrid'],
-                        Service: ['Ride_Sharing', 'Car_Sharing', 'Maintenance', 'Charging_Station', 'Car_Wash'],
-                        Accessories: ['Tire', 'Battery', 'Navigation', 'Dashcam', 'Car_Audio', 'Safety_Equipment'],
-                    },
-                    Media_Publishing: {
-                        Books: ['Fiction', 'Nonfiction', 'Self_Help', 'Business', 'Finance', 'Children', 'Lifestyle'],
-                        Digital_Books: ['eBook', 'Interactive_Book', 'Serialized_Fiction'],
-                        Audio_Content: ['Audiobook', 'Audio_Series', 'Podcast_Original'],
-                        Periodicals: ['Newsletter', 'Magazine_Subscription', 'Paid_Community'],
-                        Author_Brand: ['Book_Launch', 'Speaking', 'Fan_Membership', 'Merchandise'],
-                    },
-                    ESG_Impact: {
-                        Environment: ['Carbon_Offset', 'Recycling', 'Clean_Energy', 'Water_Conservation'],
-                        Social: ['Donation_Platform', 'Volunteer_Organization', 'Community_Development'],
-                        Green_Tech: ['Solar_Energy', 'Wind_Energy', 'EV_Infrastructure', 'Smart_Grid'],
-                    },
-                }
-            };
+            // Industry Taxonomy v1.1
+            const industryData = mode === 'attribute' ? undefined : INDUSTRY_TAXONOMY_V1_1;
 
             // Attribute Taxonomy v1.0
-            const attributeData = mode === 'industry' ? undefined : {
-                version: '1.0',
-                lastUpdated: '2025-12-19',
-                attributes: {
-                    Price_Positioning: { description: '가격 포지셔닝', values: ['Mass', 'Value', 'Mid', 'Premium', 'Luxury', 'Ultra_Luxury'] },
-                    Sustainability: { description: '지속가능성', values: ['Eco_Friendly', 'Upcycled', 'Fair_Trade', 'Vegan', 'Cruelty_Free', 'Organic', 'Zero_Waste'] },
-                    Business_Model: { description: '비즈니스 모델', values: ['Direct_To_Consumer', 'Marketplace', 'Subscription', 'Rental', 'Resale', 'Secondhand', 'On_Demand'] },
-                    Brand_Type: { description: '브랜드 유형', values: ['Legacy_Brand', 'Designer_Brand', 'Indie_Brand', 'Creator_Brand', 'Local_Brand', 'Global_Brand'] },
-                    Product_Lifecycle: { description: '제품 수명주기', values: ['New_Launch', 'Limited_Edition', 'Seasonal', 'Evergreen', 'Preorder', 'Flash_Sale'] },
-                    Audience_Lifecycle: { description: '타겟 라이프스타일', values: ['Student', 'Early_Career', 'Young_Professional', 'Family', 'Mid_Career', 'Senior'] },
-                    Channel_Preference: { description: '채널 선호', values: ['Online_First', 'Offline_First', 'Omnichannel', 'Mobile_First', 'Social_Commerce'] },
-                    Purchase_Decision_Style: { description: '구매 결정 스타일', values: ['Impulse', 'Deal_Seeker', 'Research_Heavy', 'Brand_Loyal', 'Trend_Seeker', 'Quality_Focused'] },
-                    Offer_Format: { description: '제공 형식', values: ['Physical_Product', 'Digital_Product', 'Service', 'Experience', 'Event', 'Membership'] },
-                    Target_Gender: { description: '타겟 성별', values: ['Male', 'Female', 'Unisex'] },
-                }
-            };
+            const attributeData = mode === 'industry' ? undefined : ATTRIBUTE_TAXONOMY_V1_0;
 
             const result = await uploadTaxonomy({
                 industryData,
@@ -1140,15 +1044,15 @@ export const AdminPage: React.FC = () => {
                                             <p className="text-xs text-gray-500">산업 분류</p>
                                         </div>
                                         <div className="bg-white rounded-xl p-4 text-center">
-                                            <p className="text-3xl font-black text-green-600">60+</p>
+                                            <p className="text-3xl font-black text-green-600">73</p>
                                             <p className="text-xs text-gray-500">카테고리</p>
                                         </div>
                                         <div className="bg-white rounded-xl p-4 text-center">
-                                            <p className="text-3xl font-black text-green-600">400+</p>
+                                            <p className="text-3xl font-black text-green-600">480+</p>
                                             <p className="text-xs text-gray-500">서브카테고리</p>
                                         </div>
                                         <div className="bg-white rounded-xl p-4 text-center border-2 border-indigo-200">
-                                            <p className="text-3xl font-black text-indigo-600">10</p>
+                                            <p className="text-3xl font-black text-indigo-600">14</p>
                                             <p className="text-xs text-gray-500">속성 유형 (NEW)</p>
                                         </div>
                                     </div>
@@ -1281,10 +1185,22 @@ export const AdminPage: React.FC = () => {
                                     {/* Survey Editor */}
                                     {surveysData && (
                                         <div className="mt-6 border-t border-blue-200 pt-6">
-                                            <SurveyEditor
-                                                surveys={surveysData}
-                                                onRefresh={handleLoadSurveys}
-                                            />
+                                            {surveysData.length === 0 ? (
+                                                <div className="bg-white rounded-xl p-8 text-center border-2 border-dashed border-gray-200">
+                                                    <p className="text-gray-500 mb-4">표시할 설문 카테고리가 없습니다.</p>
+                                                    <button
+                                                        onClick={handleUploadSurveys}
+                                                        className="text-blue-500 hover:underline font-medium"
+                                                    >
+                                                        기본 설문 데이터 업로드하기
+                                                    </button>
+                                                </div>
+                                            ) : (
+                                                <SurveyEditor
+                                                    surveys={surveysData}
+                                                    onRefresh={handleLoadSurveys}
+                                                />
+                                            )}
                                             <button
                                                 onClick={() => setSurveysData(null)}
                                                 className="mt-4 text-sm text-gray-500 underline"

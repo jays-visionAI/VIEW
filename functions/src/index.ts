@@ -1811,74 +1811,130 @@ export const calculatePersona = onCall({
             .map(([k]) => k.split('.')[0])
             .filter((v, i, arr) => arr.indexOf(v) === i);
 
-        // 5. 페르소나 카드 부여
+        // 5. 페르소나 카드 부여 (확장된 30카드 시스템)
         const cards: any[] = [];
+        const now = new Date().toISOString();
 
-        if (traits.earlyAdopter > 0.7 && (taxonomyScores['Technology'] || 0) > 0.3) {
-            cards.push({
-                id: 'tech_early_adopter',
-                name: '테크 얼리어답터',
-                level: Math.round(traits.earlyAdopter * 10),
-                icon: '🚀',
-                earnedAt: new Date().toISOString(),
-            });
+        // === 카테고리 1: 소비 성향 (Spending Style) ===
+
+        // 프리미엄 웨일 (legendary)
+        if (traits.purchasingPower >= 0.9 && traits.priceVsBrand >= 0.8) {
+            cards.push({ id: 'premium_whale', name: '프리미엄 웨일', icon: '🐋', level: 10, rarity: 'legendary', category: 'spending', earnedAt: now });
+        }
+        // 럭셔리 러버 (epic)
+        else if (traits.purchasingPower >= 0.7 && traits.priceVsBrand >= 0.6) {
+            cards.push({ id: 'luxury_lover', name: '럭셔리 러버', icon: '💎', level: Math.round(traits.purchasingPower * 10), rarity: 'epic', category: 'spending', earnedAt: now });
         }
 
-        if (traits.purchasingPower > 0.7 && traits.priceVsBrand > 0.6) {
-            cards.push({
-                id: 'premium_consumer',
-                name: '프리미엄 컨슈머',
-                level: Math.round(traits.purchasingPower * 10),
-                icon: '💎',
-                earnedAt: new Date().toISOString(),
-            });
-        }
-
+        // 스마트 세이버 vs 딜 헌터
         if (traits.priceVsBrand < 0.3) {
-            cards.push({
-                id: 'smart_shopper',
-                name: '가성비 헌터',
-                level: Math.round((1 - traits.priceVsBrand) * 10),
-                icon: '🎯',
-                earnedAt: new Date().toISOString(),
-            });
+            cards.push({ id: 'smart_saver', name: '스마트 세이버', icon: '🎯', level: Math.round((1 - traits.priceVsBrand) * 10), rarity: 'common', category: 'spending', earnedAt: now });
+        } else if (traits.priceVsBrand < 0.4 && traits.planningHorizon >= 0.6) {
+            cards.push({ id: 'deal_hunter', name: '딜 헌터', icon: '🏷️', level: 7, rarity: 'uncommon', category: 'spending', earnedAt: now });
         }
 
-        if (traits.onlinePreference > 0.8) {
-            cards.push({
-                id: 'digital_native',
-                name: '디지털 네이티브',
-                level: Math.round(traits.onlinePreference * 10),
-                icon: '📱',
-                earnedAt: new Date().toISOString(),
-            });
+        // 충동구매러 vs 계획적 구매자
+        if (traits.impulseBuying >= 0.7) {
+            cards.push({ id: 'impulse_buyer', name: '충동구매러', icon: '⚡', level: Math.round(traits.impulseBuying * 10), rarity: 'uncommon', category: 'spending', earnedAt: now });
+        } else if (traits.planningHorizon >= 0.8 && traits.impulseBuying < 0.3) {
+            cards.push({ id: 'calculated_planner', name: '계획적 구매자', icon: '📊', level: Math.round(traits.planningHorizon * 10), rarity: 'uncommon', category: 'spending', earnedAt: now });
         }
 
-        if ((taxonomyScores['Travel'] || 0) > 0.5) {
-            cards.push({
-                id: 'travel_lover',
-                name: '여행 러버',
-                level: Math.round((taxonomyScores['Travel'] || 0.5) * 10),
-                icon: '✈️',
-                earnedAt: new Date().toISOString(),
-            });
+        // 브랜드 충성파 vs 브랜드 탐험가
+        if (traits.brandLoyalty >= 0.8) {
+            cards.push({ id: 'brand_loyalist', name: '브랜드 충성파', icon: '🏆', level: Math.round(traits.brandLoyalty * 10), rarity: 'rare', category: 'spending', earnedAt: now });
+        } else if (traits.brandLoyalty < 0.3 && traits.earlyAdopter >= 0.5) {
+            cards.push({ id: 'brand_explorer', name: '브랜드 탐험가', icon: '🧭', level: 6, rarity: 'uncommon', category: 'spending', earnedAt: now });
+        }
+
+        // === 카테고리 2: 라이프스타일 (Lifestyle) ===
+
+        // 에코 워리어
+        if (traits.sustainabilityValue >= 0.7) {
+            cards.push({ id: 'eco_warrior', name: '에코 워리어', icon: '🌱', level: Math.round(traits.sustainabilityValue * 10), rarity: 'rare', category: 'lifestyle', earnedAt: now });
+        }
+
+        // 경험 추구자
+        if (traits.experienceSeeker >= 0.7) {
+            cards.push({ id: 'experience_seeker', name: '경험 추구자', icon: '🎭', level: Math.round(traits.experienceSeeker * 10), rarity: 'rare', category: 'lifestyle', earnedAt: now });
+        }
+
+        // 소셜 버터플라이
+        if (traits.socialInfluence >= 0.7) {
+            cards.push({ id: 'social_butterfly', name: '소셜 버터플라이', icon: '🦋', level: Math.round(traits.socialInfluence * 10), rarity: 'uncommon', category: 'lifestyle', earnedAt: now });
+        }
+
+        // 미니멀리스트
+        if (traits.impulseBuying < 0.2 && traits.planningHorizon >= 0.7) {
+            cards.push({ id: 'minimalist', name: '미니멀리스트', icon: '🧘', level: 7, rarity: 'rare', category: 'lifestyle', earnedAt: now });
+        }
+
+        // === 카테고리 3: 채널/테크 (Channel & Tech) ===
+
+        // 디지털 네이티브 vs 오프라인 탐험가
+        if (traits.onlinePreference >= 0.8) {
+            cards.push({ id: 'digital_native', name: '디지털 네이티브', icon: '📱', level: Math.round(traits.onlinePreference * 10), rarity: 'common', category: 'channel', earnedAt: now });
+        } else if (traits.onlinePreference < 0.3) {
+            cards.push({ id: 'offline_explorer', name: '오프라인 탐험가', icon: '🏬', level: 6, rarity: 'uncommon', category: 'channel', earnedAt: now });
+        } else if (traits.onlinePreference >= 0.4 && traits.onlinePreference <= 0.6) {
+            cards.push({ id: 'omni_shopper', name: '옴니 쇼퍼', icon: '🔄', level: 6, rarity: 'uncommon', category: 'channel', earnedAt: now });
+        }
+
+        // 테크 얼리어답터
+        if (traits.earlyAdopter >= 0.7 && (taxonomyScores['Technology'] || 0) > 0.3) {
+            cards.push({ id: 'tech_early_adopter', name: '테크 얼리어답터', icon: '🚀', level: Math.round(traits.earlyAdopter * 10), rarity: 'epic', category: 'channel', earnedAt: now });
+        }
+
+        // 소셜커머스 팬
+        if (traits.socialInfluence >= 0.6 && traits.onlinePreference >= 0.7) {
+            cards.push({ id: 'social_commerce_fan', name: '소셜커머스 팬', icon: '📲', level: 7, rarity: 'uncommon', category: 'channel', earnedAt: now });
+        }
+
+        // === 카테고리 4: 산업 관심사 (Industry Interest) ===
+        const industryCards = [
+            { key: 'Fashion', id: 'fashionista', name: '패셔니스타', icon: '👗', rarity: 'uncommon' },
+            { key: 'Beauty', id: 'beauty_maven', name: '뷰티 메이븐', icon: '💄', rarity: 'uncommon' },
+            { key: 'Food_Beverage', id: 'foodie', name: '푸디', icon: '🍽️', rarity: 'common' },
+            { key: 'Travel', id: 'travel_lover', name: '여행 러버', icon: '✈️', rarity: 'rare' },
+            { key: 'Technology', id: 'tech_geek', name: '테크 긱', icon: '💻', rarity: 'uncommon' },
+            { key: 'Entertainment', id: 'gamer', name: '게이머', icon: '🎮', rarity: 'uncommon' },
+            { key: 'Home_Living', id: 'homemaker', name: '홈메이커', icon: '🏠', rarity: 'common' },
+            { key: 'Finance', id: 'investor', name: '투자자', icon: '📈', rarity: 'rare' },
+            { key: 'Health_Wellness', id: 'health_conscious', name: '헬스 컨셔스', icon: '💪', rarity: 'uncommon' },
+        ];
+
+        for (const ic of industryCards) {
+            const score = taxonomyScores[ic.key] || 0;
+            if (score > 0.5) {
+                cards.push({
+                    id: ic.id,
+                    name: ic.name,
+                    icon: ic.icon,
+                    level: Math.round(score * 10),
+                    rarity: ic.rarity,
+                    category: 'interest',
+                    earnedAt: now
+                });
+            }
+        }
+
+        // === 카테고리 5: 특별 등급 (Special Tier) ===
+        const completionRate = Object.keys(responses).length / 6;
+        const activityCount = activities.length;
+        const estimatedDataValue = Math.round((completionRate * 3000) + (activityCount * 10) + (cards.length * 500));
+
+        // VIP 멤버 (설문 80% 이상 + 높은 데이터 가치)
+        if (completionRate >= 0.8 && estimatedDataValue >= 10000) {
+            cards.push({ id: 'vip_member', name: 'VIP 멤버', icon: '👑', level: 10, rarity: 'legendary', category: 'special', earnedAt: now });
         }
 
         // 기본 카드 (아무것도 없을 때)
         if (cards.length === 0) {
-            cards.push({
-                id: 'rising_star',
-                name: '라이징 스타',
-                level: 1,
-                icon: '⭐',
-                earnedAt: new Date().toISOString(),
-            });
+            cards.push({ id: 'rising_star', name: '라이징 스타', icon: '⭐', level: 1, rarity: 'common', category: 'special', earnedAt: now });
         }
 
-        // 6. 데이터 가치 계산 (월 예상 수익, 원)
-        const completionRate = Object.keys(responses).length / 6;
-        const activityCount = activities.length;
-        const dataValue = Math.round((completionRate * 3000) + (activityCount * 10) + (cards.length * 500));
+        // 6. 데이터 가치 계산 (월 예상 수익, 원) - estimatedDataValue 재사용
+        const dataValue = estimatedDataValue;
 
         // 7. 페르소나 저장
         const persona = {

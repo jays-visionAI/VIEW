@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none">
+  <defs>
+    <linearGradient id="diamond" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#06B6D4"/>
+      <stop offset="50%" stop-color="#3B82F6"/>
+      <stop offset="100%" stop-color="#8B5CF6"/>
+    </linearGradient>
+  </defs>
+  <circle cx="32" cy="32" r="30" fill="url(#diamond)" opacity="0.15"/>
+  <path d="M32 14L44 26L32 50L20 26L32 14Z" fill="url(#diamond)"/>
+  <path d="M32 14L44 26H20L32 14Z" fill="#E0F2FE"/>
+  <path d="M32 26L44 26L32 50" fill="#60A5FA" opacity="0.5"/>
+  <circle cx="32" cy="32" r="30" stroke="url(#diamond)" stroke-width="2"/>
+</svg>

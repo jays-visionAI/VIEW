@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none">
+  <defs>
+    <linearGradient id="ticket" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#8B5CF6"/>
+      <stop offset="100%" stop-color="#6366F1"/>
+    </linearGradient>
+  </defs>
+  <circle cx="32" cy="32" r="30" fill="url(#ticket)" opacity="0.15"/>
+  <rect x="14" y="22" width="36" height="20" rx="4" fill="url(#ticket)"/>
+  <circle cx="14" cy="32" r="4" fill="#F8FAFC"/>
+  <circle cx="50" cy="32" r="4" fill="#F8FAFC"/>
+  <line x1="24" y1="24" x2="24" y2="40" stroke="#F8FAFC" stroke-width="2" stroke-dasharray="4 2"/>
+  <text x="37" y="35" font-family="Arial" font-size="10" font-weight="bold" fill="#FFF">50%</text>
+  <circle cx="32" cy="32" r="30" stroke="url(#ticket)" stroke-width="2"/>
+</svg>

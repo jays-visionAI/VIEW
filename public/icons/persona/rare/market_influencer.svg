@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none">
+  <defs>
+    <linearGradient id="market" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#3B82F6"/>
+      <stop offset="100%" stop-color="#2563EB"/>
+    </linearGradient>
+  </defs>
+  <circle cx="32" cy="32" r="30" fill="url(#market)" opacity="0.15"/>
+  <path d="M16 24V44H24L32 52V44H48V24H16Z" fill="url(#market)"/>
+  <path d="M24 30H40M24 36H34" stroke="white" stroke-width="3" stroke-linecap="round"/>
+  <circle cx="32" cy="32" r="30" stroke="url(#market)" stroke-width="2"/>
+</svg>
