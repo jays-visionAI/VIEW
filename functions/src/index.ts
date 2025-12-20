@@ -4641,3 +4641,170 @@ export const settleLottoRound = onCall({
         throw new HttpsError('internal', error.message);
     }
 });
+
+// ============================================
+// Advertiser Product Management
+// ============================================
+
+// Get Advertiser Products
+export const getAdvertiserProducts = onCall({
+    cors: true,
+}, async (request) => {
+    if (!request.auth) {
+        throw new HttpsError("unauthenticated", "로그인이 필요합니다.");
+    }
+
+    const uid = request.auth.uid;
+    const db = admin.firestore();
+
+    try {
+        // Get products for this advertiser
+        const snapshot = await db.collection('advertiserProducts')
+            .where('advertiserId', '==', uid)
+            .orderBy('createdAt', 'desc')
+            .limit(100)
+            .get();
+
+        const products = snapshot.docs.map(doc => ({
+            id: doc.id,
+            ...doc.data()
+        }));
+
+        return { success: true, products };
+    } catch (error: any) {
+        functions.logger.error('getAdvertiserProducts error:', error);
+        throw new HttpsError('internal', error.message);
+    }
+});
+
+// Save Advertiser Product (Create or Update)
+export const saveAdvertiserProduct = onCall({
+    cors: true,
+}, async (request) => {
+    if (!request.auth) {
+        throw new HttpsError("unauthenticated", "로그인이 필요합니다.");
+    }
+
+    const uid = request.auth.uid;
+    const db = admin.firestore();
+    const productData = request.data;
+
+    if (!productData.name || !productData.industry || !productData.category) {
+        throw new HttpsError("invalid-argument", "필수 항목을 입력해주세요.");
+    }
+
+    try {
+        const productId = productData.id || `prod_${Date.now()}`;
+
+        const productDoc = {
+            id: productId,
+            advertiserId: uid,
+            name: productData.name,
+            description: productData.description || '',
+            imageUrl: productData.imageUrl || '',
+            industry: productData.industry,
+            category: productData.category,
+            subcategory: productData.subcategory || null,
+            attributes: productData.attributes || {},
+            brand: productData.brand || null,
+            isActive: productData.isActive ?? true,
+            isAdvertiserProduct: true,
+            weight: 1,
+            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        };
+
+        // Check if update or create
+        const existingDoc = await db.collection('advertiserProducts').doc(productId).get();
+
+        if (existingDoc.exists) {
+            // Verify ownership
+            if (existingDoc.data()?.advertiserId !== uid) {
+                throw new HttpsError("permission-denied", "수정 권한이 없습니다.");
+            }
+            await db.collection('advertiserProducts').doc(productId).update(productDoc);
+        } else {
+            productDoc.createdAt = admin.firestore.FieldValue.serverTimestamp() as any;
+            await db.collection('advertiserProducts').doc(productId).set(productDoc);
+        }
+
+        return { success: true, productId };
+    } catch (error: any) {
+        functions.logger.error('saveAdvertiserProduct error:', error);
+        throw new HttpsError('internal', error.message);
+    }
+});
+
+// Delete Advertiser Product
+export const deleteAdvertiserProduct = onCall({
+    cors: true,
+}, async (request) => {
+    if (!request.auth) {
+        throw new HttpsError("unauthenticated", "로그인이 필요합니다.");
+    }
+
+    const uid = request.auth.uid;
+    const db = admin.firestore();
+    const { productId } = request.data;
+
+    if (!productId) {
+        throw new HttpsError("invalid-argument", "제품 ID가 필요합니다.");
+    }
+
+    try {
+        const productDoc = await db.collection('advertiserProducts').doc(productId).get();
+
+        if (!productDoc.exists) {
+            throw new HttpsError("not-found", "제품을 찾을 수 없습니다.");
+        }
+
+        if (productDoc.data()?.advertiserId !== uid) {
+            throw new HttpsError("permission-denied", "삭제 권한이 없습니다.");
+        }
+
+        await db.collection('advertiserProducts').doc(productId).delete();
+
+        return { success: true };
+    } catch (error: any) {
+        functions.logger.error('deleteAdvertiserProduct error:', error);
+        throw new HttpsError('internal', error.message);
+    }
+});
+
+// Get All Swipe Items (Public items + Advertiser products)
+export const getSwipeItems = onCall({
+    cors: true,
+}, async (request) => {
+    const db = admin.firestore();
+    const { limit: itemLimit = 20, excludeIds = [] } = request.data || {};
+
+    try {
+        // Get active advertiser products
+        const snapshot = await db.collection('advertiserProducts')
+            .where('isActive', '==', true)
+            .limit(50)
+            .get();
+
+        const advertiserProducts = snapshot.docs.map(doc => ({
+            id: doc.id,
+            ...doc.data(),
+            source: 'advertiser'
+        }));
+
+        // Filter out already seen items
+        const filteredProducts = advertiserProducts.filter(
+            p => !excludeIds.includes(p.id)
+        );
+
+        // Shuffle and limit
+        const shuffled = filteredProducts.sort(() => Math.random() - 0.5);
+
+        return {
+            success: true,
+            items: shuffled.slice(0, itemLimit),
+            totalAvailable: advertiserProducts.length
+        };
+    } catch (error: any) {
+        functions.logger.error('getSwipeItems error:', error);
+        throw new HttpsError('internal', error.message);
+    }
+});
