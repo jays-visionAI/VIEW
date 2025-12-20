@@ -4723,9 +4723,12 @@ export const saveAdvertiserProduct = onCall({
             }
             await db.collection('advertiserProducts').doc(productId).update(productDoc);
         } else {
-            productDoc.createdAt = admin.firestore.FieldValue.serverTimestamp() as any;
-            await db.collection('advertiserProducts').doc(productId).set(productDoc);
+            await db.collection('advertiserProducts').doc(productId).set({
+                ...productDoc,
+                createdAt: admin.firestore.FieldValue.serverTimestamp(),
+            });
         }
+
 
         return { success: true, productId };
     } catch (error: any) {
@@ -4805,6 +4808,139 @@ export const getSwipeItems = onCall({
         };
     } catch (error: any) {
         functions.logger.error('getSwipeItems error:', error);
+        throw new HttpsError('internal', error.message);
+    }
+});
+
+// Record Swipe Activity & Update Persona
+export const recordSwipeActivity = onCall({
+    cors: true,
+}, async (request) => {
+    if (!request.auth) {
+        throw new HttpsError("unauthenticated", "로그인이 필요합니다.");
+    }
+
+    const uid = request.auth.uid;
+    const db = admin.firestore();
+    const { itemId, direction, taxonomyTags, attributes } = request.data;
+
+    if (!itemId || !direction) {
+        throw new HttpsError("invalid-argument", "필수 항목이 누락되었습니다.");
+    }
+
+    const isLike = direction === 'right';
+
+    try {
+        // 1. Record the swipe activity
+        await db.collection(`users/${uid}/swipeActivities`).add({
+            itemId,
+            direction,
+            isLike,
+            taxonomyTags: taxonomyTags || [],
+            attributes: attributes || {},
+            createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        });
+
+        // 2. Update taxonomy scores in persona
+        const personaRef = db.doc(`users/${uid}/persona/current`);
+        const personaDoc = await personaRef.get();
+        const personaData = personaDoc.exists ? personaDoc.data() : {};
+
+        const currentScores = personaData?.interests?.scores || {};
+        const currentAttributeScores = personaData?.attributeScores || {};
+
+        // Update taxonomy scores based on swipe direction
+        const scoreChange = isLike ? 0.05 : -0.02;
+        const updatedScores = { ...currentScores };
+
+        if (taxonomyTags && Array.isArray(taxonomyTags)) {
+            for (const tag of taxonomyTags) {
+                const currentScore = updatedScores[tag] || 0;
+                updatedScores[tag] = Math.max(0, Math.min(1, currentScore + scoreChange));
+            }
+        }
+
+        // Update attribute scores
+        const updatedAttributeScores = { ...currentAttributeScores };
+        if (attributes) {
+            const attrScoreChange = isLike ? 0.08 : -0.03;
+
+            if (attributes.pricePositioning) {
+                const key = `Price_Positioning.${attributes.pricePositioning}`;
+                updatedAttributeScores[key] = Math.max(0, Math.min(1,
+                    (updatedAttributeScores[key] || 0) + attrScoreChange
+                ));
+            }
+
+            if (attributes.sustainability) {
+                const key = `Sustainability.${attributes.sustainability}`;
+                updatedAttributeScores[key] = Math.max(0, Math.min(1,
+                    (updatedAttributeScores[key] || 0) + attrScoreChange
+                ));
+            }
+
+            if (attributes.businessModel) {
+                const key = `Business_Model.${attributes.businessModel}`;
+                updatedAttributeScores[key] = Math.max(0, Math.min(1,
+                    (updatedAttributeScores[key] || 0) + attrScoreChange
+                ));
+            }
+        }
+
+        // 3. Update persona document
+        await personaRef.set({
+            interests: {
+                ...personaData?.interests,
+                scores: updatedScores,
+            },
+            attributeScores: updatedAttributeScores,
+            swipeCount: admin.firestore.FieldValue.increment(1),
+            lastSwipeAt: admin.firestore.FieldValue.serverTimestamp(),
+        }, { merge: true });
+
+        // 4. Update user's top attributes (for quick filtering)
+        const sortedAttributes = Object.entries(updatedAttributeScores)
+            .sort(([, a], [, b]) => (b as number) - (a as number))
+            .slice(0, 5)
+            .map(([key]) => key);
+
+        await db.doc(`users/${uid}`).update({
+            topAttributes: sortedAttributes,
+            attributeScoresCount: Object.keys(updatedAttributeScores).length,
+        });
+
+        // 5. Grant VP reward every 10 swipes
+        const userDoc = await db.doc(`users/${uid}`).get();
+        const userData = userDoc.data() || {};
+        const totalSwipes = (userData.totalSwipes || 0) + 1;
+
+        let vpRewarded = 0;
+        if (totalSwipes % 10 === 0) {
+            vpRewarded = 1;
+            await db.doc(`users/${uid}`).update({
+                balance: admin.firestore.FieldValue.increment(1),
+                totalSwipes,
+            });
+
+            // Record transaction
+            await db.collection(`users/${uid}/transactions`).add({
+                type: 'Swipe Reward',
+                amount: 1,
+                description: `${totalSwipes}회 스와이프 보상`,
+                createdAt: admin.firestore.FieldValue.serverTimestamp(),
+            });
+        } else {
+            await db.doc(`users/${uid}`).update({ totalSwipes });
+        }
+
+        return {
+            success: true,
+            vpRewarded,
+            totalSwipes,
+            message: vpRewarded > 0 ? `+${vpRewarded} VP 획득!` : null
+        };
+    } catch (error: any) {
+        functions.logger.error('recordSwipeActivity error:', error);
         throw new HttpsError('internal', error.message);
     }
 });

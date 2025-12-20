@@ -185,30 +185,100 @@ const SwipeGame: React.FC<{
   onComplete: () => void;
   onSwipe: (item: any, direction: 'left' | 'right') => void;
 }> = ({ onComplete, onSwipe }) => {
-  // Dynamic swipe items from constants (80+ items, shuffled)
-  const [swipeItems] = useState(() => {
-    // Lazy import to avoid circular deps
-    const { SWIPE_ITEMS } = require('../src/constants/swipeItems');
-    // Shuffle and pick 20 random items for this session
-    const shuffled = [...SWIPE_ITEMS].sort(() => Math.random() - 0.5);
-    return shuffled.slice(0, 20).map((item: any) => ({
-      id: item.id,
-      name: item.name,
-      brand: item.brand || '',
-      imageUrl: item.imageUrl,
-      category: `${item.industry}.${item.category}`,
-      taxonomyTags: [item.industry, `${item.industry}.${item.category}`, item.subcategory ? `${item.industry}.${item.category}.${item.subcategory}` : null].filter(Boolean),
-      attributes: item.attributes,
-    }));
-  });
-
+  const [swipeItems, setSwipeItems] = useState<any[]>([]);
+  const [isLoadingItems, setIsLoadingItems] = useState(true);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [dragOffset, setDragOffset] = useState(0);
   const [isDragging, setIsDragging] = useState(false);
   const [swipeCount, setSwipeCount] = useState(0);
   const [showReward, setShowReward] = useState(false);
+  const [rewardMessage, setRewardMessage] = useState<string | null>(null);
+
+  // Load items: Static constants + Advertiser products from Firestore
+  useEffect(() => {
+    const loadItems = async () => {
+      setIsLoadingItems(true);
+      try {
+        // 1. Load static items from constants
+        const { SWIPE_ITEMS } = require('../src/constants/swipeItems');
+        const staticItems = SWIPE_ITEMS.map((item: any) => ({
+          id: item.id,
+          name: item.name,
+          brand: item.brand || '',
+          imageUrl: item.imageUrl,
+          category: `${item.industry}.${item.category}`,
+          taxonomyTags: [item.industry, `${item.industry}.${item.category}`, item.subcategory ? `${item.industry}.${item.category}.${item.subcategory}` : null].filter(Boolean),
+          attributes: item.attributes,
+          source: 'static',
+        }));
+
+        // 2. Try to load advertiser products from Firestore
+        let advertiserItems: any[] = [];
+        try {
+          const functions = getFunctions();
+          const getSwipeItemsFn = httpsCallable(functions, 'getSwipeItems');
+          const result = await getSwipeItemsFn({ limit: 30 });
+          const data = result.data as { success: boolean; items: any[] };
+          if (data.success && data.items) {
+            advertiserItems = data.items.map((item: any) => ({
+              id: item.id,
+              name: item.name,
+              brand: item.brand || '',
+              imageUrl: item.imageUrl,
+              category: `${item.industry}.${item.category}`,
+              taxonomyTags: [item.industry, `${item.industry}.${item.category}`, item.subcategory].filter(Boolean),
+              attributes: item.attributes || {},
+              source: 'advertiser',
+            }));
+          }
+        } catch (e) {
+          console.warn('Failed to load advertiser products:', e);
+        }
+
+        // 3. Combine, shuffle, and pick items
+        const allItems = [...advertiserItems, ...staticItems];
+        const shuffled = allItems.sort(() => Math.random() - 0.5);
+        setSwipeItems(shuffled.slice(0, 25));
+      } catch (error) {
+        console.error('Failed to load swipe items:', error);
+        // Fallback to static items only
+        const { SWIPE_ITEMS } = require('../src/constants/swipeItems');
+        const shuffled = [...SWIPE_ITEMS].sort(() => Math.random() - 0.5);
+        setSwipeItems(shuffled.slice(0, 20));
+      } finally {
+        setIsLoadingItems(false);
+      }
+    };
+
+    loadItems();
+  }, []);
 
   const currentItem = swipeItems[currentIndex];
+
+  // Record swipe activity to backend
+  const recordSwipe = async (item: any, direction: 'left' | 'right') => {
+    try {
+      const functions = getFunctions();
+      const recordSwipeActivityFn = httpsCallable(functions, 'recordSwipeActivity');
+      const result = await recordSwipeActivityFn({
+        itemId: item.id,
+        direction,
+        taxonomyTags: item.taxonomyTags,
+        attributes: item.attributes,
+      });
+      const data = result.data as { success: boolean; vpRewarded: number; message: string | null };
+      if (data.vpRewarded > 0) {
+        setRewardMessage(data.message);
+        setShowReward(true);
+        setTimeout(() => {
+          setShowReward(false);
+          setRewardMessage(null);
+        }, 1500);
+      }
+    } catch (error) {
+      console.warn('Failed to record swipe:', error);
+    }
+  };
 
   const handleDragStart = (clientX: number) => {
     setIsDragging(true);
@@ -225,15 +295,10 @@ const SwipeGame: React.FC<{
     if (Math.abs(dragOffset) > 100) {
       const direction = dragOffset > 0 ? 'right' : 'left';
       onSwipe(currentItem, direction);
+      recordSwipe(currentItem, direction);
 
       const newCount = swipeCount + 1;
       setSwipeCount(newCount);
-
-      // Show reward every 10 swipes
-      if (newCount % 10 === 0) {
-        setShowReward(true);
-        setTimeout(() => setShowReward(false), 1500);
-      }
 
       if (currentIndex < swipeItems.length - 1) {
         setCurrentIndex(prev => prev + 1);
@@ -244,6 +309,7 @@ const SwipeGame: React.FC<{
 
     setDragOffset(0);
   };
+
 
   // Touch handlers
   const touchStartRef = React.useRef(0);
@@ -266,14 +332,10 @@ const SwipeGame: React.FC<{
     setDragOffset(direction === 'right' ? 150 : -150);
     setTimeout(() => {
       onSwipe(currentItem, direction);
+      recordSwipe(currentItem, direction);
 
       const newCount = swipeCount + 1;
       setSwipeCount(newCount);
-
-      if (newCount % 10 === 0) {
-        setShowReward(true);
-        setTimeout(() => setShowReward(false), 1500);
-      }
 
       if (currentIndex < swipeItems.length - 1) {
         setCurrentIndex(prev => prev + 1);
@@ -285,24 +347,36 @@ const SwipeGame: React.FC<{
     }, 150);
   };
 
-  if (!currentItem) {
+  // Loading state
+  if (isLoadingItems) {
+    return (
+      <div className="flex flex-col items-center justify-center py-12 text-center">
+        <Loader2 size={32} className="animate-spin text-brand-500 mb-3" />
+        <p className="text-sm text-gray-500">상품 로딩 중...</p>
+      </div>
+    );
+  }
+
+  if (!currentItem || swipeItems.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center py-12 text-center">
         <span className="text-4xl mb-3">🎉</span>
         <h4 className="font-bold text-gray-800">오늘의 스와이프 완료!</h4>
-        <p className="text-sm text-gray-500 mt-1">총 {swipeCount}개 스와이프, +{Math.floor(swipeCount / 10)} VP 획득</p>
+        <p className="text-sm text-gray-500 mt-1">총 {swipeCount}개 스와이프 완료</p>
       </div>
     );
   }
+
 
   return (
     <div className="relative">
       {/* Reward Toast */}
       {showReward && (
         <div className="absolute top-0 left-1/2 -translate-x-1/2 z-50 bg-gradient-to-r from-yellow-400 to-orange-500 text-white font-bold px-4 py-2 rounded-full shadow-lg animate-bounce">
-          🎁 +1 VP 획득!
+          🎁 {rewardMessage || '+1 VP 획득!'}
         </div>
       )}
+
 
       {/* Card Stack */}
       <div className="relative h-[320px] flex items-center justify-center">
