@@ -1247,7 +1247,7 @@ export const AdminPage: React.FC = () => {
                                         </div>
                                         <div className="bg-white rounded-xl p-3 text-center">
                                             <p className="text-2xl font-black text-blue-600">1,500</p>
-                                            <p className="text-xs text-gray-500">VIEW 보상</p>
+                                            <p className="text-xs text-gray-500">VP 보상</p>
                                         </div>
                                     </div>
 

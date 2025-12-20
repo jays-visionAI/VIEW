@@ -660,8 +660,8 @@ const Profile: React.FC = () => {
               <div className="w-8 h-8 rounded-full bg-brand-50 text-brand-600 flex items-center justify-center mb-2">
                 <Wallet size={16} />
               </div>
-              <span className="text-gray-900 font-bold text-sm">{userState.balance.toLocaleString()} V</span>
-              <span className="text-gray-400 text-[10px]">보유 자산</span>
+              <span className="text-gray-900 font-bold text-sm">{userState.balance.toLocaleString()} VP</span>
+              <span className="text-gray-400 text-[10px]">View Point</span>
             </div>
             <div className="flex flex-col items-center justify-center p-2">
               <div className="w-8 h-8 rounded-full bg-yellow-50 text-yellow-600 flex items-center justify-center mb-2">
@@ -714,8 +714,8 @@ const Profile: React.FC = () => {
                   {isConnected && (
                     <div className="mt-4">
                       <div className="flex justify-between items-center mb-2 px-1">
-                        <span className="text-gray-400 text-xs">클레임 가능</span>
-                        <span className="text-brand-300 font-medium text-xs">{claimableAmount.toLocaleString()} VIEW</span>
+                        <span className="text-gray-400 text-xs">토큰 전환 가능</span>
+                        <span className="text-brand-300 font-medium text-xs">{claimableAmount.toLocaleString()} VP → VIEW</span>
                       </div>
                       <button
                         onClick={() => {
@@ -792,7 +792,7 @@ const Profile: React.FC = () => {
                       className="w-full py-3 bg-white text-brand-600 rounded-xl font-bold flex items-center justify-center space-x-2 hover:bg-brand-50 active:scale-[0.98] transition-all shadow-lg"
                     >
                       <Coins size={18} />
-                      <span>{claimableAmount.toLocaleString()} VIEW 클레임하기</span>
+                      <span>{claimableAmount.toLocaleString()} VP → VIEW 토큰 전환</span>
                     </button>
                   )}
 

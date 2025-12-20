@@ -313,7 +313,7 @@ const SurveyEditor: React.FC<SurveyEditorProps> = ({ surveys, onRefresh }) => {
                                 <div>
                                     <h4 className="font-bold text-gray-800">{category.categoryNameKo}</h4>
                                     <p className="text-xs text-gray-500">
-                                        ID: {category.id} | 순서: {category.order} | {category.questions?.length || 0}개 질문 | 보너스: {category.completionBonus}V
+                                        ID: {category.id} | 순서: {category.order} | {category.questions?.length || 0}개 질문 | 보너스: {category.completionBonus}VP
                                     </p>
                                 </div>
                             </div>
@@ -514,7 +514,7 @@ const SurveyEditor: React.FC<SurveyEditorProps> = ({ surveys, onRefresh }) => {
                                                         Type: {q.type} |
                                                         {q.type !== 'slider' && ` Options: ${q.options?.length || 0} |`}
                                                         {q.type === 'slider' && ` Range: 1-5 |`}
-                                                        보상: {q.reward}V |
+                                                        보상: {q.reward}VP |
                                                         {q.required ? ' 필수' : ' 선택'}
                                                     </p>
                                                 </div>

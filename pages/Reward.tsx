@@ -158,7 +158,7 @@ const SurveyModal: React.FC<{
           {/* Reward & Submit */}
           <div className="mt-6 flex items-center justify-between">
             <span className="text-sm text-gray-500">
-              보상: <span className="font-bold text-brand-500">+{question.reward} VIEW</span>
+              보상: <span className="font-bold text-brand-500">+{question.reward} VP</span>
             </span>
             <button
               onClick={handleSubmit}
@@ -285,7 +285,7 @@ const SwipeGame: React.FC<{
       <div className="flex flex-col items-center justify-center py-12 text-center">
         <span className="text-4xl mb-3">🎉</span>
         <h4 className="font-bold text-gray-800">오늘의 스와이프 완료!</h4>
-        <p className="text-sm text-gray-500 mt-1">총 {swipeCount}개 스와이프, +{Math.floor(swipeCount / 10)} VIEW 획득</p>
+        <p className="text-sm text-gray-500 mt-1">총 {swipeCount}개 스와이프, +{Math.floor(swipeCount / 10)} VP 획득</p>
       </div>
     );
   }
@@ -295,7 +295,7 @@ const SwipeGame: React.FC<{
       {/* Reward Toast */}
       {showReward && (
         <div className="absolute top-0 left-1/2 -translate-x-1/2 z-50 bg-gradient-to-r from-yellow-400 to-orange-500 text-white font-bold px-4 py-2 rounded-full shadow-lg animate-bounce">
-          🎁 +1 VIEW 획득!
+          🎁 +1 VP 획득!
         </div>
       )}
 
@@ -994,7 +994,7 @@ const Reward: React.FC = () => {
                   </div>
                   <div className="text-right">
                     <span className="inline-block bg-yellow-50 text-yellow-700 px-2 py-1 rounded-lg text-xs font-black border border-yellow-100">
-                      +{mission.reward} V
+                      +{mission.reward} VP
                     </span>
                   </div>
                 </div>
@@ -1046,7 +1046,7 @@ const Reward: React.FC = () => {
               <h2 className="font-bold text-xl text-gray-900">설문 퀘스트</h2>
             </div>
             <span className="text-xs font-bold text-brand-500 bg-brand-100 px-2 py-1 rounded-full">
-              최대 1,500 VIEW
+              최대 1,500 VP
             </span>
           </div>
 
@@ -1091,7 +1091,7 @@ const Reward: React.FC = () => {
 
                     <div className="flex items-center justify-between mt-2">
                       <span className="text-xs font-medium text-brand-500">
-                        +{survey.completionBonus} VIEW
+                        +{survey.completionBonus} VP
                       </span>
                       {!isComplete && (
                         <ChevronRight size={14} className="text-gray-400" />
@@ -1112,7 +1112,7 @@ const Reward: React.FC = () => {
               <h2 className="font-bold text-xl text-gray-900">취향 스와이프</h2>
             </div>
             <span className="text-xs font-bold text-pink-500 bg-pink-50 px-2 py-1 rounded-full">
-              10회당 +1 VIEW
+              10회당 +1 VP
             </span>
           </div>
 

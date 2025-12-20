@@ -179,11 +179,11 @@ const Home: React.FC = () => {
                 </p>
                 <h1 className="text-4xl font-black text-white tracking-tight flex items-baseline">
                   {userState.balance.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
-                  <span className="text-lg text-brand-300 font-medium ml-1.5">VIEW</span>
+                  <span className="text-lg text-brand-300 font-medium ml-1.5">VP</span>
                 </h1>
                 <p className="text-green-400 text-xs font-medium mt-1 flex items-center">
                   <ArrowUpRight size={12} className="mr-1" />
-                  오늘 +{userState.todayEarnings} VIEW 획득
+                  오늘 +{userState.todayEarnings} VP 획득
                 </p>
               </div>
             </div>
@@ -247,7 +247,7 @@ const Home: React.FC = () => {
                 <div className="text-left">
                   <h3 className="text-3xl font-black text-white mb-2 tracking-tight drop-shadow-md">광고 보고 적립</h3>
                   <div className="bg-black/20 backdrop-blur-sm px-3 py-1.5 rounded-lg border border-white/10 inline-flex items-center">
-                    <span className="text-brand-100 text-sm font-bold">최대 {5 * getCurrentTier(userState.staked).multiplier} VIEW / 회</span>
+                    <span className="text-brand-100 text-sm font-bold">최대 {5 * getCurrentTier(userState.staked).multiplier} VP / 회</span>
                   </div>
                 </div>
               </div>
