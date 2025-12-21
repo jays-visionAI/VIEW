@@ -467,7 +467,8 @@ const SwipeGame: React.FC<{
 type CoinType = 'bitcoin' | 'ethereum';
 
 const Reward: React.FC = () => {
-  const { userState, addTransaction, claimMission, submitPrediction } = useApp();
+  const { userState, addTransaction, claimMission, submitPrediction, updateSwipeMission } = useApp();
+
   const [selectedRange, setSelectedRange] = useState<string | null>(null);
   const [betAmount, setBetAmount] = useState<number>(10);
   const [timeLeft, setTimeLeft] = useState("04:23:10");
@@ -1219,9 +1220,11 @@ const Reward: React.FC = () => {
                 }}
                 onSwipe={(item, direction) => {
                   console.log(`Swiped ${direction} on:`, item.name, item.taxonomyTags);
-                  // TODO: Call Firebase function to track preference
+                  // Update swipe mission progress
+                  updateSwipeMission();
                 }}
               />
+
             </div>
           )}
         </div>

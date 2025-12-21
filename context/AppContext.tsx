@@ -35,6 +35,7 @@ interface AppContextType {
   loginAnonymously: () => Promise<void>;
   loginWithGoogle: () => Promise<void>;
   submitPrediction: (coin: 'bitcoin' | 'ethereum', range: string, currentPrice: number, betAmount: number) => void;
+  updateSwipeMission: () => Promise<void>;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -676,6 +677,35 @@ export const AppProvider: React.FC<PropsWithChildren<{}>> = ({ children }) => {
     }
   };
 
+  // Update swipe mission progress (m4: 취향 스와이프 20회)
+  const updateSwipeMission = async () => {
+    if (!currentUser) return;
+
+    try {
+      const { db } = await import('../firebase');
+      const { doc, updateDoc } = await import('firebase/firestore');
+      const userRef = doc(db, 'users', currentUser.uid);
+
+      const swipeMission = userState.missions.find(m => m.id === 'm4');
+      if (!swipeMission || swipeMission.completed) return;
+
+      const newProgress = Math.min(swipeMission.progress + 1, swipeMission.total);
+      const isCompleted = newProgress >= swipeMission.total;
+
+      const newMissions = userState.missions.map(m =>
+        m.id === 'm4'
+          ? { ...m, progress: newProgress, completed: isCompleted }
+          : m
+      );
+
+      await updateDoc(userRef, { missions: newMissions });
+
+      // Local state update will happen via listener
+    } catch (e) {
+      console.error('Failed to update swipe mission:', e);
+    }
+  };
+
   return (
     <AppContext.Provider value={{
       activeTab,
@@ -696,7 +726,8 @@ export const AppProvider: React.FC<PropsWithChildren<{}>> = ({ children }) => {
       isLoggedIn: !!currentUser,
       loginAnonymously,
       loginWithGoogle,
-      submitPrediction
+      submitPrediction,
+      updateSwipeMission
     }}>
       {children}
     </AppContext.Provider>

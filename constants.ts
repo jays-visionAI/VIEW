@@ -9,10 +9,12 @@ export const INITIAL_TRANSACTIONS: Transaction[] = [
 ];
 
 export const MOCK_MISSIONS: Mission[] = [
-  { id: 'm1', title: '광고 매니아', description: '오늘 광고 5개 시청하기', reward: 10, progress: 2, total: 5, completed: false, claimed: false },
-  { id: 'm2', title: '로또 팬', description: '티켓 1장 업로드하기', reward: 15, progress: 1, total: 1, completed: true, claimed: false },
+  { id: 'm1', title: '광고 매니아', description: '오늘 광고 5개 시청하기', reward: 10, progress: 0, total: 5, completed: false, claimed: false },
+  { id: 'm2', title: '로또 팬', description: '티켓 1장 업로드하기', reward: 15, progress: 0, total: 1, completed: false, claimed: false },
   { id: 'm3', title: '크립토 분석가', description: 'BTC 가격 예측 참여하기', reward: 5, progress: 0, total: 1, completed: false, claimed: false },
+  { id: 'm4', title: '취향 탐색가', description: '취향 스와이프 20회 완료', reward: 3, progress: 0, total: 20, completed: false, claimed: false },
 ];
+
 
 export const MOCK_BTC_ROUND: BTCGameRound = {
   id: 'round_294',
