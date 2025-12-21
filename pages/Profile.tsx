@@ -100,6 +100,67 @@ const PersonaDashboard: React.FC<{ userData: any; onRefresh: () => void }> = ({ 
     { subject: '계획구매', A: (traits.planningHorizon || 0.5) * 100, fullMark: 100 },
   ];
 
+  // Industry Labels for Top Interest
+  const INDUSTRY_LABELS: Record<string, { label: string; icon: string }> = {
+    Fashion: { label: '패션', icon: '👗' },
+    Beauty: { label: '뷰티', icon: '💄' },
+    Food_Beverage: { label: '식음료', icon: '🍽️' },
+    Travel: { label: '여행', icon: '✈️' },
+    Finance: { label: '금융', icon: '📈' },
+    Technology: { label: '테크', icon: '💻' },
+    Education: { label: '교육', icon: '📚' },
+    Health_Wellness: { label: '헬스케어', icon: '💪' },
+    Auto_Mobility: { label: '모빌리티', icon: '🚗' },
+    Home_Living: { label: '홈리빙', icon: '🏠' },
+    Entertainment: { label: '엔터', icon: '🎮' },
+    ESG_Sustainability: { label: 'ESG', icon: '🌱' },
+    Media_Publishing: { label: '미디어', icon: '📖' },
+  };
+
+  // Get Top Interest with validation
+  const getTopInterest = () => {
+    const interestScores = persona.interests?.scores || {};
+    const swipeCount = persona.swipeCount || 0;
+
+    // Need at least some data
+    if (Object.keys(interestScores).length === 0 && swipeCount < 10) {
+      return null;
+    }
+
+    const primary = persona.interests?.primary;
+    if (primary && INDUSTRY_LABELS[primary]) {
+      return INDUSTRY_LABELS[primary];
+    }
+
+    // Fallback: find highest score
+    const sortedInterests = Object.entries(interestScores)
+      .sort(([, a], [, b]) => (b as number) - (a as number));
+
+    if (sortedInterests.length > 0) {
+      const topKey = sortedInterests[0][0].split('.')[0];
+      return INDUSTRY_LABELS[topKey] || null;
+    }
+
+    return null;
+  };
+
+  const topInterest = getTopInterest();
+
+  // DATA VALUE Gate: Check if user has enough data
+  const surveyCategories = Object.keys(userData.surveyResponses || {}).length;
+  const totalSurveyCategories = 6;
+  const surveyCompletionRate = surveyCategories / totalSurveyCategories;
+  const swipeCount = persona.swipeCount || 0;
+
+  // Minimum threshold: 30% survey OR 30 swipes
+  const hasEnoughData = surveyCompletionRate >= 0.3 || swipeCount >= 30;
+
+  // Progress calculation (for gate UI)
+  const dataProgress = Math.min(100, Math.max(
+    surveyCompletionRate * 100,
+    (swipeCount / 30) * 100
+  ));
+
 
   return (
     <div className="mx-5 mt-6 space-y-4">
@@ -108,73 +169,117 @@ const PersonaDashboard: React.FC<{ userData: any; onRefresh: () => void }> = ({ 
         <div className="absolute top-0 right-0 w-64 h-64 bg-brand-500/10 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2"></div>
 
         <div className="relative z-10">
-          <div className="flex justify-between items-start mb-6">
-            <div>
-              <span className="text-brand-300 text-xs font-bold tracking-wider uppercase mb-1 block">Data Value</span>
-              <h2 className="text-3xl font-bold flex items-baseline gap-1">
-                ₩ {persona.dataValue?.toLocaleString() || 0}
-                <span className="text-xs text-gray-400 font-normal">/월 예측</span>
-              </h2>
-            </div>
-            <button
-              onClick={async () => {
-                setIsCalculating(true);
-                await onRefresh();
-                setIsCalculating(false);
-              }}
-              disabled={isCalculating}
-              className="p-2 bg-white/10 rounded-lg hover:bg-white/20 transition-colors"
-            >
-              <RefreshCw size={18} className={`text-white ${isCalculating ? 'animate-spin' : ''}`} />
-            </button>
-          </div>
+          {!hasEnoughData ? (
+            /* Gate: Not enough data */
+            <div className="text-center py-4">
+              <div className="w-16 h-16 bg-white/10 rounded-full flex items-center justify-center mx-auto mb-4 border border-white/20">
+                <span className="text-3xl">📊</span>
+              </div>
+              <h3 className="text-lg font-bold mb-2">데이터 수집 중...</h3>
+              <p className="text-indigo-200 text-xs mb-4 max-w-xs mx-auto">
+                설문조사와 취향 스와이프를 완료하면<br />나만의 DATA VALUE를 확인할 수 있어요!
+              </p>
 
-          <div className="flex gap-4">
-            {/* Radar Chart */}
-            <div className="flex-1 h-[140px] -ml-6">
-              <ResponsiveContainer width="100%" height="100%">
-                <RadarChart cx="50%" cy="50%" outerRadius="60%" data={chartData}>
-                  <PolarGrid stroke="#ffffff30" />
-                  <PolarAngleAxis dataKey="subject" tick={{ fill: '#9ca3af', fontSize: 10 }} />
-                  <PolarRadiusAxis angle={30} domain={[0, 100]} tick={false} axisLine={false} />
-                  <Radar
-                    name="My Traits"
-                    dataKey="A"
-                    stroke="#8b5cf6"
-                    strokeWidth={2}
-                    fill="#8b5cf6"
-                    fillOpacity={0.4}
+              {/* Progress Bar */}
+              <div className="max-w-xs mx-auto mb-4">
+                <div className="flex justify-between text-[10px] text-gray-400 mb-1">
+                  <span>진행률</span>
+                  <span>{Math.round(dataProgress)}%</span>
+                </div>
+                <div className="h-2 bg-white/10 rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-gradient-to-r from-brand-400 to-purple-400 rounded-full transition-all"
+                    style={{ width: `${dataProgress}%` }}
                   />
-                </RadarChart>
-              </ResponsiveContainer>
-            </div>
-
-            {/* Top Traits */}
-            <div className="w-1/3 flex flex-col justify-center space-y-2">
-              <div className="bg-white/5 rounded-xl p-2 border border-white/10">
-                <span className="text-[10px] text-gray-400 block mb-1">Top Interest</span>
-                <span className="text-sm font-bold text-brand-300">
-                  {persona.interests?.primary || '-'}
-                </span>
-              </div>
-              <div className="bg-white/5 rounded-xl p-2 border border-white/10">
-                <span className="text-[10px] text-gray-400 block mb-1">대표 특성</span>
-                <span className="text-sm font-bold text-brand-300 flex items-center gap-1">
-                  {topTrait ? (
-                    <>
-                      <span>{topTrait.icon}</span>
-                      <span>{topTrait.label}</span>
-                    </>
-                  ) : (
-                    '-'
-                  )}
-                </span>
+                </div>
               </div>
 
+              {/* Status */}
+              <div className="flex justify-center gap-4 text-xs text-gray-400">
+                <span>설문 {surveyCategories}/{totalSurveyCategories}</span>
+                <span>•</span>
+                <span>스와이프 {swipeCount}/30</span>
+              </div>
             </div>
-          </div>
+          ) : (
+            /* Data Available */
+            <>
+              <div className="flex justify-between items-start mb-6">
+                <div>
+                  <span className="text-brand-300 text-xs font-bold tracking-wider uppercase mb-1 block">Data Value</span>
+                  <h2 className="text-3xl font-bold flex items-baseline gap-1">
+                    ₩ {persona.dataValue?.toLocaleString() || 0}
+                    <span className="text-xs text-gray-400 font-normal">/월 예측</span>
+                  </h2>
+                </div>
+                <button
+                  onClick={async () => {
+                    setIsCalculating(true);
+                    await onRefresh();
+                    setIsCalculating(false);
+                  }}
+                  disabled={isCalculating}
+                  className="p-2 bg-white/10 rounded-lg hover:bg-white/20 transition-colors"
+                >
+                  <RefreshCw size={18} className={`text-white ${isCalculating ? 'animate-spin' : ''}`} />
+                </button>
+              </div>
+
+              <div className="flex gap-4">
+                {/* Radar Chart */}
+                <div className="flex-1 h-[140px] -ml-6">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <RadarChart cx="50%" cy="50%" outerRadius="60%" data={chartData}>
+                      <PolarGrid stroke="#ffffff30" />
+                      <PolarAngleAxis dataKey="subject" tick={{ fill: '#9ca3af', fontSize: 10 }} />
+                      <PolarRadiusAxis angle={30} domain={[0, 100]} tick={false} axisLine={false} />
+                      <Radar
+                        name="My Traits"
+                        dataKey="A"
+                        stroke="#8b5cf6"
+                        strokeWidth={2}
+                        fill="#8b5cf6"
+                        fillOpacity={0.4}
+                      />
+                    </RadarChart>
+                  </ResponsiveContainer>
+                </div>
+
+                {/* Top Traits */}
+                <div className="w-1/3 flex flex-col justify-center space-y-2">
+                  <div className="bg-white/5 rounded-xl p-2 border border-white/10">
+                    <span className="text-[10px] text-gray-400 block mb-1">Top Interest</span>
+                    <span className="text-sm font-bold text-brand-300 flex items-center gap-1">
+                      {topInterest ? (
+                        <>
+                          <span>{topInterest.icon}</span>
+                          <span>{topInterest.label}</span>
+                        </>
+                      ) : (
+                        '-'
+                      )}
+                    </span>
+                  </div>
+                  <div className="bg-white/5 rounded-xl p-2 border border-white/10">
+                    <span className="text-[10px] text-gray-400 block mb-1">대표 특성</span>
+                    <span className="text-sm font-bold text-brand-300 flex items-center gap-1">
+                      {topTrait ? (
+                        <>
+                          <span>{topTrait.icon}</span>
+                          <span>{topTrait.label}</span>
+                        </>
+                      ) : (
+                        '-'
+                      )}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </>
+          )}
         </div>
       </div>
+
 
       {/* 2. Attribute Scores Section - NEW */}
       {persona.attributeScores && Object.keys(persona.attributeScores).length > 0 && (
