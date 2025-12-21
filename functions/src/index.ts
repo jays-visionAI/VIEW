@@ -4887,8 +4887,52 @@ export const recordSwipeActivity = onCall({
             }
         }
 
-        // 3. Update persona document
+        // === NEW: Update trait scores based on swipe behavior ===
+        const currentTraits = personaData?.traits || {};
+        const updatedTraits = { ...currentTraits };
+
+
+        // Adjust earlyAdopter based on new/trending items
+        if (attributes?.isNew || attributes?.isTrending) {
+            updatedTraits.earlyAdopter = Math.max(0, Math.min(1,
+                (updatedTraits.earlyAdopter || 0.5) + (isLike ? 0.03 : -0.01)
+            ));
+        }
+
+        // Adjust purchasingPower and priceVsBrand based on price positioning
+        if (attributes?.pricePositioning) {
+            const pricing = attributes.pricePositioning;
+            if (pricing === 'Premium' || pricing === 'Super_Premium') {
+                updatedTraits.purchasingPower = Math.max(0, Math.min(1,
+                    (updatedTraits.purchasingPower || 0.5) + (isLike ? 0.03 : -0.01)
+                ));
+                updatedTraits.priceVsBrand = Math.max(0, Math.min(1,
+                    (updatedTraits.priceVsBrand || 0.5) + (isLike ? 0.02 : -0.01)
+                ));
+            } else if (pricing === 'Budget' || pricing === 'Value') {
+                updatedTraits.priceVsBrand = Math.max(0, Math.min(1,
+                    (updatedTraits.priceVsBrand || 0.5) - (isLike ? 0.02 : -0.01)
+                ));
+            }
+        }
+
+        // Adjust sustainabilityValue based on eco-friendly items
+        if (attributes?.sustainability && attributes.sustainability !== 'None') {
+            updatedTraits.sustainabilityValue = Math.max(0, Math.min(1,
+                (updatedTraits.sustainabilityValue || 0.5) + (isLike ? 0.03 : -0.01)
+            ));
+        }
+
+        // Online preference based on DTC/tech items
+        if (attributes?.businessModel === 'DTC' || taxonomyTags?.includes('Technology')) {
+            updatedTraits.onlinePreference = Math.max(0, Math.min(1,
+                (updatedTraits.onlinePreference || 0.5) + (isLike ? 0.02 : -0.01)
+            ));
+        }
+
+        // 3. Update persona document (including updated traits)
         await personaRef.set({
+            traits: updatedTraits,
             interests: {
                 ...personaData?.interests,
                 scores: updatedScores,
@@ -4897,6 +4941,7 @@ export const recordSwipeActivity = onCall({
             swipeCount: admin.firestore.FieldValue.increment(1),
             lastSwipeAt: admin.firestore.FieldValue.serverTimestamp(),
         }, { merge: true });
+
 
         // 4. Update user's top attributes (for quick filtering)
         const sortedAttributes = Object.entries(updatedAttributeScores)

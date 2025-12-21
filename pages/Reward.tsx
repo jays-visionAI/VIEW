@@ -1143,41 +1143,62 @@ const Reward: React.FC = () => {
                 const isComplete = progress >= total;
                 const category = surveyCategories[survey.id] || { icon: '📋', color: 'text-gray-600', bgColor: 'bg-gray-100' };
 
+                // Check if retake is available (30 days after completion)
+                const completedAt = response?.completedAt?.toDate?.() || (response?.completedAt ? new Date(response.completedAt) : null);
+                const daysSinceComplete = completedAt ? Math.floor((Date.now() - completedAt.getTime()) / (1000 * 60 * 60 * 24)) : 0;
+                const canRetake = isComplete && daysSinceComplete >= 30;
+
                 return (
                   <button
                     key={survey.id}
                     onClick={() => {
-                      setActiveSurvey(survey);
-                      setCurrentQuestionIndex(progress);
+                      if (canRetake) {
+                        // Reset progress for retake
+                        setActiveSurvey({ ...survey, isRetake: true });
+                        setCurrentQuestionIndex(0);
+                      } else {
+                        setActiveSurvey(survey);
+                        setCurrentQuestionIndex(progress);
+                      }
                     }}
-                    className={`relative p-4 rounded-2xl border-2 text-left transition-all active:scale-[0.98] ${isComplete
-                      ? 'bg-green-50 border-green-200'
-                      : 'bg-white border-gray-100 hover:border-brand-200 hover:shadow-sm'
+                    className={`relative p-4 rounded-2xl border-2 text-left transition-all active:scale-[0.98] ${canRetake
+                        ? 'bg-blue-50 border-blue-200 hover:border-blue-300'
+                        : isComplete
+                          ? 'bg-green-50 border-green-200'
+                          : 'bg-white border-gray-100 hover:border-brand-200 hover:shadow-sm'
                       }`}
                   >
+                    {canRetake && (
+                      <span className="absolute -top-2 -right-2 bg-blue-500 text-white text-[10px] px-2 py-0.5 rounded-full font-bold">
+                        재참여
+                      </span>
+                    )}
                     <div className={`w-10 h-10 rounded-xl ${category.bgColor} flex items-center justify-center text-xl mb-2`}>
-                      {isComplete ? '✅' : category.icon}
+                      {canRetake ? '🔄' : isComplete ? '✅' : category.icon}
                     </div>
                     <h4 className="font-bold text-sm text-gray-800 mb-1">{survey.categoryNameKo}</h4>
-                    <p className="text-xs text-gray-500 mb-2">{progress}/{total} 문항</p>
+                    <p className="text-xs text-gray-500 mb-2">
+                      {canRetake ? `${daysSinceComplete}일 전 완료` : `${progress}/${total} 문항`}
+                    </p>
 
                     {/* Progress bar */}
                     <div className="w-full h-1.5 bg-gray-100 rounded-full overflow-hidden">
                       <div
-                        className={`h-full rounded-full ${isComplete ? 'bg-green-500' : 'bg-brand-500'}`}
+                        className={`h-full rounded-full ${canRetake ? 'bg-blue-500' : isComplete ? 'bg-green-500' : 'bg-brand-500'}`}
                         style={{ width: `${(progress / total) * 100}%` }}
                       />
                     </div>
 
                     <div className="flex items-center justify-between mt-2">
                       <span className="text-xs font-medium text-brand-500">
-                        +{survey.completionBonus} VP
+                        {canRetake ? `+${Math.floor(survey.completionBonus * 0.5)} VP` : `+${survey.completionBonus} VP`}
                       </span>
-                      {!isComplete && (
+                      {(!isComplete || canRetake) && (
                         <ChevronRight size={14} className="text-gray-400" />
                       )}
                     </div>
                   </button>
+
                 );
               })}
             </div>
