@@ -2565,8 +2565,59 @@ export const settlePredictionGame = functions.pubsub
 
             await finalBatch.commit();
 
+            // Send winner notification emails
+            if (finalWinnerList.length > 0) {
+                const emailBatch = db.batch();
+                for (const winner of finalWinnerList) {
+                    try {
+                        const userDoc = await db.doc(`users/${winner.userId}`).get();
+                        const userData = userDoc.data();
+                        const email = userData?.email;
+
+                        if (email) {
+                            const mailRef = db.collection('mail').doc();
+                            emailBatch.set(mailRef, {
+                                to: email,
+                                message: {
+                                    subject: winner.isJackpot
+                                        ? `🎰 VIEW 잭팟 당첨! +${winner.reward} VIEW`
+                                        : `🎉 VIEW BTC 예측 성공! +${winner.reward} VIEW`,
+                                    html: `
+                                        <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto;">
+                                            <h1 style="color: #8B5CF6;">🎉 축하합니다, ${winner.displayName}님!</h1>
+                                            <p>BTC 가격 예측 게임에서 <strong style="color: #22C55E;">승리</strong>하셨습니다!</p>
+                                            
+                                            <div style="background: #F3F4F6; border-radius: 12px; padding: 20px; margin: 20px 0;">
+                                                <p><strong>라운드:</strong> #${roundId} (${dateStr})</p>
+                                                <p><strong>실제 BTC 가격:</strong> $${btcPrice.toLocaleString()}</p>
+                                                <p><strong>당첨 범위:</strong> ${winningRange}</p>
+                                                <p><strong>베팅 금액:</strong> ${winner.betAmount} VIEW</p>
+                                                <p style="font-size: 24px; color: #8B5CF6;"><strong>획득 보상:</strong> +${winner.reward} VIEW</p>
+                                                ${winner.isJackpot ? '<p style="color: #F59E0B; font-weight: bold;">🎰 잭팟 당첨!!</p>' : ''}
+                                            </div>
+                                            
+                                            <p>VIEW 앱에서 보상을 확인하세요!</p>
+                                            <a href="https://view-adt.pages.dev" style="display: inline-block; background: #8B5CF6; color: white; padding: 12px 24px; border-radius: 8px; text-decoration: none; margin-top: 16px;">앱 열기</a>
+                                        </div>
+                                    `
+                                }
+                            });
+                        }
+                    } catch (emailError) {
+                        functions.logger.error(`Failed to queue email for ${winner.userId}:`, emailError);
+                    }
+                }
+                try {
+                    await emailBatch.commit();
+                    functions.logger.info(`Queued ${finalWinnerList.length} winner notification emails`);
+                } catch (emailBatchError) {
+                    functions.logger.error('Failed to commit email batch:', emailBatchError);
+                }
+            }
+
             functions.logger.info(`Settlement complete Round #${roundId}: Winners=${finalWinnerList.length}, Jackpot=${jackpotWinners.length}, NextJackpot=${nextJackpotAmount}`);
             return null;
+
 
         } catch (error) {
             functions.logger.error("Settlement error:", error);
@@ -2587,26 +2638,288 @@ export const manualSettlePrediction = onCall({
         throw new HttpsError("invalid-argument", "날짜를 입력해주세요.");
     }
 
-    // Trigger settlement logic for specific date
-    // (Reuse the same logic but with provided date)
     const db = admin.firestore();
+    const dateStr = date;
 
     try {
-        const roundRef = db.doc(`predictionRounds/${date}`);
+        const roundRef = db.doc(`predictionRounds/${dateStr}`);
         const roundDoc = await roundRef.get();
 
         if (roundDoc.exists && roundDoc.data()?.status === 'settled') {
             throw new HttpsError("already-exists", "이미 정산된 라운드입니다.");
         }
 
-        // ... (Same logic as above, but for specified date)
-        // For brevity, we'll just mark it as needing re-run
+        // Fetch current BTC price
+        let btcPrice = 0;
+        try {
+            const response = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd');
+            const data = await response.json();
+            btcPrice = data.bitcoin?.usd || 0;
+        } catch (e) {
+            throw new HttpsError("internal", "BTC 가격 조회 실패");
+        }
 
-        return { success: true, message: `${date} 라운드 정산을 시작합니다.` };
+        if (btcPrice === 0) {
+            throw new HttpsError("internal", "BTC 가격이 0입니다");
+        }
+
+        // Find winning range
+        const settingsDoc = await db.doc('settings/predictionGame').get();
+        const settings = settingsDoc.exists ? settingsDoc.data() : {};
+        const rangeStep = settings?.priceRangeStep || 500;
+        const lowerBound = Math.floor(btcPrice / rangeStep) * rangeStep;
+        const upperBound = lowerBound + rangeStep;
+        const winningRange = `$${lowerBound.toLocaleString()} ~ $${upperBound.toLocaleString()}`;
+
+        // Query predictions for this date
+        const startOfDay = new Date(dateStr);
+        startOfDay.setHours(0, 0, 0, 0);
+        const endOfDay = new Date(dateStr);
+        endOfDay.setHours(23, 59, 59, 999);
+
+        const predictionsQuery = await db.collectionGroup('predictions')
+            .where('coin', '==', 'bitcoin')
+            .get();
+
+        const todayPredictions: any[] = [];
+        let totalPool = 0;
+
+        predictionsQuery.docs.forEach(doc => {
+            const data = doc.data();
+            const predictedAt = data.predictedAt?.toDate?.() || new Date(0);
+            if (predictedAt >= startOfDay && predictedAt <= endOfDay) {
+                todayPredictions.push({
+                    id: doc.id,
+                    ref: doc.ref,
+                    userId: doc.ref.parent.parent?.id,
+                    ...data
+                });
+                totalPool += data.betAmount || 2;
+            }
+        });
+
+        // Get Round ID
+        const counterRef = db.doc('counters/predictionRound');
+        let roundId = 1;
+        await db.runTransaction(async (t) => {
+            const doc = await t.get(counterRef);
+            if (doc.exists) {
+                roundId = (doc.data()?.lastRoundId || 0) + 1;
+                t.update(counterRef, { lastRoundId: roundId });
+            } else {
+                t.set(counterRef, { lastRoundId: 1 });
+            }
+        });
+
+        // If no participants
+        if (todayPredictions.length === 0) {
+            await roundRef.set({
+                roundId,
+                date: dateStr,
+                coin: 'bitcoin',
+                status: 'settled',
+                actualPrice: btcPrice,
+                winningRange,
+                totalPool: 0,
+                participantCount: 0,
+                winners: [],
+                totalWinners: 0,
+                totalDistributed: 0,
+                settledAt: admin.firestore.FieldValue.serverTimestamp()
+            });
+            return { success: true, message: `${dateStr} 라운드 정산 완료 (참여자 0명)` };
+        }
+
+        // Find winners
+        const winningRangeWinners: any[] = [];
+        const jackpotWinners: any[] = [];
+        const actualPriceInt = Math.floor(btcPrice);
+
+        todayPredictions.forEach(pred => {
+            if (pred.range === winningRange) {
+                winningRangeWinners.push(pred);
+            }
+            if (pred.predictedPrice !== undefined && Math.floor(pred.predictedPrice) === actualPriceInt) {
+                jackpotWinners.push(pred);
+            }
+        });
+
+        // Calculate pools
+        const rangePool = Math.floor(totalPool * 50 / 100);
+        const jackpotPool = Math.floor(totalPool * 10 / 100);
+        const rangeRewardPerWinner = winningRangeWinners.length > 0 ? Math.floor(rangePool / winningRangeWinners.length) : 0;
+
+        // Handle Jackpot
+        const jackpotRef = db.doc('settings/jackpot');
+        const jackpotDoc = await jackpotRef.get();
+        const currentJackpot = jackpotDoc.data()?.currentAmount || 0;
+
+        let jackpotRewardPerWinner = 0;
+        let nextJackpotAmount = currentJackpot + jackpotPool;
+
+        if (jackpotWinners.length > 0) {
+            const totalDistributable = currentJackpot + jackpotPool;
+            jackpotRewardPerWinner = Math.floor(totalDistributable / jackpotWinners.length);
+            nextJackpotAmount = 0;
+        }
+
+        // Execute batch
+        const finalBatch = db.batch();
+        const finalWinnerList: any[] = [];
+        let totalDistributed = 0;
+
+        for (const pred of todayPredictions) {
+            let rangeReward = 0;
+            let jackpotReward = 0;
+            const isRangeWinner = winningRangeWinners.some(w => w.id === pred.id);
+            const isJackpotWinner = jackpotWinners.some(w => w.id === pred.id);
+
+            if (isRangeWinner) rangeReward = rangeRewardPerWinner;
+            if (isJackpotWinner) jackpotReward = jackpotRewardPerWinner;
+
+            const totalReward = rangeReward + jackpotReward;
+
+            if (totalReward > 0 && pred.userId) {
+                const userRef = db.doc(`users/${pred.userId}`);
+                finalBatch.update(userRef, {
+                    balance: admin.firestore.FieldValue.increment(totalReward)
+                });
+
+                finalBatch.update(pred.ref, {
+                    status: 'Won',
+                    reward: totalReward,
+                    roundId,
+                    actualPrice: btcPrice,
+                    winningRange
+                });
+
+                const userDoc = await userRef.get();
+                const dName = userDoc.data()?.displayName || 'Unknown';
+
+                finalWinnerList.push({
+                    userId: pred.userId,
+                    displayName: dName,
+                    betAmount: pred.betAmount || 2,
+                    reward: totalReward,
+                    isJackpot: isJackpotWinner
+                });
+
+                totalDistributed += totalReward;
+            } else {
+                finalBatch.update(pred.ref, {
+                    status: 'Lost',
+                    reward: 0,
+                    roundId,
+                    actualPrice: btcPrice,
+                    winningRange
+                });
+            }
+        }
+
+        // Update Jackpot
+        finalBatch.set(jackpotRef, {
+            currentAmount: nextJackpotAmount,
+            lastUpdated: admin.firestore.FieldValue.serverTimestamp()
+        }, { merge: true });
+
+        // Save Round
+        finalBatch.set(roundRef, {
+            roundId,
+            date: dateStr,
+            coin: 'bitcoin',
+            status: 'settled',
+            actualPrice: btcPrice,
+            winningRange,
+            totalPool,
+            participantCount: todayPredictions.length,
+            totalWinners: finalWinnerList.length,
+            totalDistributed,
+            winners: finalWinnerList,
+            settledAt: admin.firestore.FieldValue.serverTimestamp()
+        });
+
+        await finalBatch.commit();
+
+        // Send winner notification emails
+        if (finalWinnerList.length > 0) {
+            const emailBatch = db.batch();
+            for (const winner of finalWinnerList) {
+                try {
+                    const userDoc = await db.doc(`users/${winner.userId}`).get();
+                    const userData = userDoc.data();
+                    const email = userData?.email;
+
+                    if (email) {
+                        const mailRef = db.collection('mail').doc();
+                        emailBatch.set(mailRef, {
+                            to: email,
+                            template: {
+                                name: 'prediction-winner',
+                                data: {
+                                    displayName: winner.displayName,
+                                    roundId,
+                                    date: dateStr,
+                                    actualPrice: btcPrice.toLocaleString(),
+                                    winningRange,
+                                    betAmount: winner.betAmount,
+                                    reward: winner.reward,
+                                    isJackpot: winner.isJackpot || false,
+                                }
+                            },
+                            // Fallback if template doesn't exist
+                            message: {
+                                subject: winner.isJackpot
+                                    ? `🎰 VIEW 잭팟 당첨! +${winner.reward} VIEW`
+                                    : `🎉 VIEW BTC 예측 성공! +${winner.reward} VIEW`,
+                                html: `
+                                    <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto;">
+                                        <h1 style="color: #8B5CF6;">🎉 축하합니다, ${winner.displayName}님!</h1>
+                                        <p>BTC 가격 예측 게임에서 <strong style="color: #22C55E;">승리</strong>하셨습니다!</p>
+                                        
+                                        <div style="background: #F3F4F6; border-radius: 12px; padding: 20px; margin: 20px 0;">
+                                            <p><strong>라운드:</strong> #${roundId} (${dateStr})</p>
+                                            <p><strong>실제 BTC 가격:</strong> $${btcPrice.toLocaleString()}</p>
+                                            <p><strong>당첨 범위:</strong> ${winningRange}</p>
+                                            <p><strong>베팅 금액:</strong> ${winner.betAmount} VIEW</p>
+                                            <p style="font-size: 24px; color: #8B5CF6;"><strong>획득 보상:</strong> +${winner.reward} VIEW</p>
+                                            ${winner.isJackpot ? '<p style="color: #F59E0B; font-weight: bold;">🎰 잭팟 당첨!!</p>' : ''}
+                                        </div>
+                                        
+                                        <p>VIEW 앱에서 보상을 확인하세요!</p>
+                                        <a href="https://view-adt.pages.dev" style="display: inline-block; background: #8B5CF6; color: white; padding: 12px 24px; border-radius: 8px; text-decoration: none; margin-top: 16px;">앱 열기</a>
+                                    </div>
+                                `
+                            }
+                        });
+                    }
+                } catch (emailError) {
+                    console.error(`Failed to queue email for ${winner.userId}:`, emailError);
+                }
+            }
+            try {
+                await emailBatch.commit();
+                console.log(`Queued ${finalWinnerList.length} winner notification emails`);
+            } catch (emailBatchError) {
+                console.error('Failed to commit email batch:', emailBatchError);
+            }
+        }
+
+        return {
+            success: true,
+            message: `${dateStr} 라운드 정산 완료! 참여자 ${todayPredictions.length}명, 승자 ${finalWinnerList.length}명, 배분 ${totalDistributed} VIEW`,
+            roundId,
+            actualPrice: btcPrice,
+            winningRange,
+            participantCount: todayPredictions.length,
+            winnersCount: finalWinnerList.length,
+            totalDistributed
+
+        };
     } catch (error: any) {
         throw new HttpsError("internal", error.message);
     }
 });
+
 
 // getPredictionSettings - Get prediction game settings
 export const getPredictionSettings = onCall({
