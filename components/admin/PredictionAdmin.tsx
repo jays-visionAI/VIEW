@@ -159,7 +159,8 @@ const PredictionAdmin: React.FC = () => {
                         <Trophy size={16} className="text-yellow-600" />
                         <div>
                             <p className="text-[10px] text-yellow-600 font-bold uppercase">Current Jackpot</p>
-                            <p className="text-lg font-black text-yellow-800">{currentJackpot.toLocaleString()} VIEW</p>
+                            <p className="text-lg font-black text-yellow-800">{currentJackpot.toLocaleString()} VP</p>
+
                         </div>
                     </div>
                     <button
@@ -206,7 +207,7 @@ const PredictionAdmin: React.FC = () => {
                     {/* Min Bet */}
                     <div>
                         <label className="block text-sm font-medium text-gray-700 mb-2">
-                            최소 베팅 (VIEW)
+                            최소 베팅 (VP)
                         </label>
                         <input
                             type="number"
@@ -219,7 +220,7 @@ const PredictionAdmin: React.FC = () => {
                     {/* Max Bet */}
                     <div>
                         <label className="block text-sm font-medium text-gray-700 mb-2">
-                            최대 베팅 (VIEW)
+                            최대 베팅 (VP)
                         </label>
                         <input
                             type="number"
@@ -327,7 +328,7 @@ const PredictionAdmin: React.FC = () => {
                                             </div>
                                         </td>
                                         <td className="py-3 px-4 text-right font-medium">
-                                            {round.totalPool.toLocaleString()} VIEW
+                                            {round.totalPool.toLocaleString()} VP
                                         </td>
                                         <td className="py-3 px-4 text-right">
                                             <div className="flex items-center justify-end gap-1">
@@ -336,7 +337,7 @@ const PredictionAdmin: React.FC = () => {
                                             </div>
                                         </td>
                                         <td className="py-3 px-4 text-right font-medium text-green-600">
-                                            {round.totalDistributed.toLocaleString()} VIEW
+                                            {round.totalDistributed.toLocaleString()} VP
                                         </td>
                                         <td className="py-3 px-4 text-center">
                                             <span className={`px-2 py-1 text-xs font-bold rounded-full ${round.status === 'settled'
@@ -397,7 +398,7 @@ const PredictionAdmin: React.FC = () => {
                             </div>
                             <div className="text-center">
                                 <p className="text-2xl font-black text-gray-800">{selectedRound.totalPool.toLocaleString()}</p>
-                                <p className="text-xs text-gray-500">총 풀 (VIEW)</p>
+                                <p className="text-xs text-gray-500">총 풀 (VP)</p>
                             </div>
                             <div className="text-center">
                                 <p className="text-2xl font-black text-yellow-600">{selectedRound.totalWinners}</p>
@@ -405,7 +406,7 @@ const PredictionAdmin: React.FC = () => {
                             </div>
                             <div className="text-center">
                                 <p className="text-2xl font-black text-green-600">{selectedRound.totalDistributed.toLocaleString()}</p>
-                                <p className="text-xs text-gray-500">배분액 (VIEW)</p>
+                                <p className="text-xs text-gray-500">배분액 (VP)</p>
                             </div>
                         </div>
 
@@ -420,7 +421,7 @@ const PredictionAdmin: React.FC = () => {
                                         {selectedRound.jackpotWinners.map((winner, idx) => (
                                             <div key={idx} className="flex items-center justify-between p-2 bg-white rounded-lg shadow-sm">
                                                 <span className="font-bold text-gray-800">{winner.displayName}</span>
-                                                <span className="font-black text-yellow-600">+{winner.amount.toLocaleString()} VIEW</span>
+                                                <span className="font-black text-yellow-600">+{winner.amount.toLocaleString()} VP</span>
                                             </div>
                                         ))}
                                     </div>
@@ -441,11 +442,11 @@ const PredictionAdmin: React.FC = () => {
                                                         {winner.displayName}
                                                         {winner.isJackpot && <span className="text-[10px] bg-yellow-100 text-yellow-700 px-1 rounded">JP</span>}
                                                     </p>
-                                                    <p className="text-xs text-gray-400">베팅: {winner.betAmount} VIEW</p>
+                                                    <p className="text-xs text-gray-400">베팅: {winner.betAmount} VP</p>
                                                 </div>
                                             </div>
                                             <div className="text-right">
-                                                <p className="font-bold text-green-600">+{winner.reward.toLocaleString()} VIEW</p>
+                                                <p className="font-bold text-green-600">+{winner.reward.toLocaleString()} VP</p>
                                             </div>
                                         </div>
                                     ))}

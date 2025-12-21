@@ -2580,8 +2580,8 @@ export const settlePredictionGame = functions.pubsub
                                 to: email,
                                 message: {
                                     subject: winner.isJackpot
-                                        ? `🎰 VIEW 잭팟 당첨! +${winner.reward} VIEW`
-                                        : `🎉 VIEW BTC 예측 성공! +${winner.reward} VIEW`,
+                                        ? `🎰 VP 잭팟 당첨! +${winner.reward} VP`
+                                        : `🎉 BTC 예측 성공! +${winner.reward} VP`,
                                     html: `
                                         <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto;">
                                             <h1 style="color: #8B5CF6;">🎉 축하합니다, ${winner.displayName}님!</h1>
@@ -2591,8 +2591,8 @@ export const settlePredictionGame = functions.pubsub
                                                 <p><strong>라운드:</strong> #${roundId} (${dateStr})</p>
                                                 <p><strong>실제 BTC 가격:</strong> $${btcPrice.toLocaleString()}</p>
                                                 <p><strong>당첨 범위:</strong> ${winningRange}</p>
-                                                <p><strong>베팅 금액:</strong> ${winner.betAmount} VIEW</p>
-                                                <p style="font-size: 24px; color: #8B5CF6;"><strong>획득 보상:</strong> +${winner.reward} VIEW</p>
+                                                <p><strong>베팅 금액:</strong> ${winner.betAmount} VP</p>
+                                                <p style="font-size: 24px; color: #8B5CF6;"><strong>획득 보상:</strong> +${winner.reward} VP</p>
                                                 ${winner.isJackpot ? '<p style="color: #F59E0B; font-weight: bold;">🎰 잭팟 당첨!!</p>' : ''}
                                             </div>
                                             
@@ -2869,8 +2869,9 @@ export const manualSettlePrediction = onCall({
                             // Fallback if template doesn't exist
                             message: {
                                 subject: winner.isJackpot
-                                    ? `🎰 VIEW 잭팟 당첨! +${winner.reward} VIEW`
-                                    : `🎉 VIEW BTC 예측 성공! +${winner.reward} VIEW`,
+                                    ? `🎰 VP 잭팟 당첨! +${winner.reward} VP`
+                                    : `🎉 BTC 예측 성공! +${winner.reward} VP`,
+
                                 html: `
                                     <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto;">
                                         <h1 style="color: #8B5CF6;">🎉 축하합니다, ${winner.displayName}님!</h1>
@@ -2880,8 +2881,8 @@ export const manualSettlePrediction = onCall({
                                             <p><strong>라운드:</strong> #${roundId} (${dateStr})</p>
                                             <p><strong>실제 BTC 가격:</strong> $${btcPrice.toLocaleString()}</p>
                                             <p><strong>당첨 범위:</strong> ${winningRange}</p>
-                                            <p><strong>베팅 금액:</strong> ${winner.betAmount} VIEW</p>
-                                            <p style="font-size: 24px; color: #8B5CF6;"><strong>획득 보상:</strong> +${winner.reward} VIEW</p>
+                                            <p><strong>베팅 금액:</strong> ${winner.betAmount} VP</p>
+                                            <p style="font-size: 24px; color: #8B5CF6;"><strong>획득 보상:</strong> +${winner.reward} VP</p>
                                             ${winner.isJackpot ? '<p style="color: #F59E0B; font-weight: bold;">🎰 잭팟 당첨!!</p>' : ''}
                                         </div>
                                         
@@ -2906,7 +2907,7 @@ export const manualSettlePrediction = onCall({
 
         return {
             success: true,
-            message: `${dateStr} 라운드 정산 완료! 참여자 ${todayPredictions.length}명, 승자 ${finalWinnerList.length}명, 배분 ${totalDistributed} VIEW`,
+            message: `${dateStr} 라운드 정산 완료! 참여자 ${todayPredictions.length}명, 승자 ${finalWinnerList.length}명, 배분 ${totalDistributed} VP`,
             roundId,
             actualPrice: btcPrice,
             winningRange,

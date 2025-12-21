@@ -945,7 +945,7 @@ const Reward: React.FC = () => {
                   <span className="font-bold text-yellow-800">JACKPOT</span>
                 </div>
                 <span className="font-black text-xl text-yellow-600">
-                  {jackpotAmount.toLocaleString()} VIEW
+                  {jackpotAmount.toLocaleString()} VP
                 </span>
               </div>
 
@@ -994,7 +994,7 @@ const Reward: React.FC = () => {
 
             {/* Bet Amount Input */}
             <div className="mb-4">
-              <label className="block text-xs font-medium text-gray-500 mb-2">베팅 금액 (VIEW)</label>
+              <label className="block text-xs font-medium text-gray-500 mb-2">베팅 금액 (VP)</label>
               <div className="flex items-center gap-2">
                 <div className="flex-1 relative">
                   <input
@@ -1007,7 +1007,7 @@ const Reward: React.FC = () => {
                     className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-gray-900 outline-none text-lg font-bold disabled:bg-gray-50 disabled:text-gray-400"
                     placeholder="베팅 금액"
                   />
-                  <span className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 text-sm font-medium">VIEW</span>
+                  <span className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 text-sm font-medium">VP</span>
                 </div>
                 <button
                   onClick={() => setBetAmount(Math.floor(userState.balance * 0.5))}
@@ -1024,7 +1024,7 @@ const Reward: React.FC = () => {
                   MAX
                 </button>
               </div>
-              <p className="text-xs text-gray-400 mt-1">보유: {userState.balance.toLocaleString()} VIEW</p>
+              <p className="text-xs text-gray-400 mt-1">보유: {userState.balance.toLocaleString()} VP</p>
             </div>
 
             <button
@@ -1039,7 +1039,7 @@ const Reward: React.FC = () => {
               `}
             >
               <span>{hasPredictedToday ? '이미 참여 완료' : `${currentConfig.symbol} 예측 제출하기`}</span>
-              {!hasPredictedToday && <span className={`px-2 py-0.5 rounded text-[10px] font-extrabold ${!predictedPriceInput || betAmount <= 0 ? 'bg-gray-200 text-gray-400' : 'bg-white/20 text-white'}`}>-{betAmount.toLocaleString()} VIEW</span>}
+              {!hasPredictedToday && <span className={`px-2 py-0.5 rounded text-[10px] font-extrabold ${!predictedPriceInput || betAmount <= 0 ? 'bg-gray-200 text-gray-400' : 'bg-white/20 text-white'}`}>-{betAmount.toLocaleString()} VP</span>}
             </button>
           </div>
         </div>
@@ -1162,10 +1162,10 @@ const Reward: React.FC = () => {
                       }
                     }}
                     className={`relative p-4 rounded-2xl border-2 text-left transition-all active:scale-[0.98] ${canRetake
-                        ? 'bg-blue-50 border-blue-200 hover:border-blue-300'
-                        : isComplete
-                          ? 'bg-green-50 border-green-200'
-                          : 'bg-white border-gray-100 hover:border-brand-200 hover:shadow-sm'
+                      ? 'bg-blue-50 border-blue-200 hover:border-blue-300'
+                      : isComplete
+                        ? 'bg-green-50 border-green-200'
+                        : 'bg-white border-gray-100 hover:border-brand-200 hover:shadow-sm'
                       }`}
                   >
                     {canRetake && (
