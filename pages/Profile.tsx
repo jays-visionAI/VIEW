@@ -58,6 +58,34 @@ const PersonaDashboard: React.FC<{ userData: any; onRefresh: () => void }> = ({ 
   const { persona } = userData;
   const traits = persona.traits || {};
 
+  // Trait Labels for display
+  const TRAIT_LABELS: Record<string, { label: string; icon: string }> = {
+    priceVsBrand: { label: '브랜드 러버', icon: '💎' },
+    impulseBuying: { label: '즉흥파', icon: '⚡' },
+    earlyAdopter: { label: '얼리어답터', icon: '🚀' },
+    onlinePreference: { label: '온라인 쇼퍼', icon: '📱' },
+    purchasingPower: { label: '하이엔드', icon: '👑' },
+    brandLoyalty: { label: '브랜드 충성', icon: '🏆' },
+    socialInfluence: { label: '트렌드 민감', icon: '🦋' },
+    sustainabilityValue: { label: '에코 프렌들리', icon: '🌱' },
+    experienceSeeker: { label: '경험 추구', icon: '🎭' },
+    planningHorizon: { label: '신중파', icon: '📊' },
+  };
+
+  // Get top trait
+  const getTopTrait = () => {
+    const traitEntries = Object.entries(traits).filter(
+      ([key]) => key in TRAIT_LABELS
+    );
+    if (traitEntries.length === 0) return null;
+
+    const sorted = traitEntries.sort(([, a], [, b]) => (b as number) - (a as number));
+    const topKey = sorted[0][0];
+    return { key: topKey, value: sorted[0][1] as number, ...TRAIT_LABELS[topKey] };
+  };
+
+  const topTrait = getTopTrait();
+
   // Data for Radar Chart - 10 Traits Model
   const chartData = [
     { subject: '가격중시', A: (1 - (traits.priceVsBrand || 0.5)) * 100, fullMark: 100 },
@@ -71,6 +99,7 @@ const PersonaDashboard: React.FC<{ userData: any; onRefresh: () => void }> = ({ 
     { subject: '경험추구', A: (traits.experienceSeeker || 0.5) * 100, fullMark: 100 },
     { subject: '계획구매', A: (traits.planningHorizon || 0.5) * 100, fullMark: 100 },
   ];
+
 
   return (
     <div className="mx-5 mt-6 space-y-4">
@@ -129,11 +158,19 @@ const PersonaDashboard: React.FC<{ userData: any; onRefresh: () => void }> = ({ 
                 </span>
               </div>
               <div className="bg-white/5 rounded-xl p-2 border border-white/10">
-                <span className="text-[10px] text-gray-400 block mb-1">Style</span>
-                <span className="text-sm font-bold text-brand-300">
-                  {traits.earlyAdopter > 0.6 ? 'Trend Setter' : 'Classic'}
+                <span className="text-[10px] text-gray-400 block mb-1">대표 특성</span>
+                <span className="text-sm font-bold text-brand-300 flex items-center gap-1">
+                  {topTrait ? (
+                    <>
+                      <span>{topTrait.icon}</span>
+                      <span>{topTrait.label}</span>
+                    </>
+                  ) : (
+                    '-'
+                  )}
                 </span>
               </div>
+
             </div>
           </div>
         </div>
